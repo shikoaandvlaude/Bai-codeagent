@@ -14,6 +14,7 @@ import { createFingerprintService } from "./src/services/fingerprintService.js";
 import { writeAuditHtmlReport } from "./src/services/reportWriter.js";
 import { createSettingsStore } from "./src/services/settingsStore.js";
 import { createTaskStore } from "./src/store/taskStore.js";
+import { scanDependencies } from "./src/services/dependencyAudit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,6 +122,22 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, await memoryStore.write({ preferences: body.preferences || {}, rules: Array.isArray(body.rules) ? body.rules : undefined }));
     }
 
+    if (req.method === "POST" && url.pathname === "/api/dependency-scan") {
+      const body = await readJson(req);
+      const projectId = String(body?.projectId || "");
+      if (!projectId) {
+        return sendJson(res, 400, { error: "Missing projectId" });
+      }
+      const sourceRoot = path.join(downloadsDir, projectId);
+      try {
+        await fs.access(sourceRoot);
+      } catch {
+        return sendJson(res, 404, { error: "Project not found in downloads" });
+      }
+      const findings = await scanDependencies(sourceRoot);
+      return sendJson(res, 200, { projectId, findingsCount: findings.length, findings });
+    }
+
     if (req.method === "POST" && url.pathname === "/api/tasks") {
       const body = await readJson(req);
       const memory = await memoryStore.read();
@@ -161,11 +178,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname.startsWith("/downloads/")) {
-      return serveFile(res, path.join(downloadsDir, decodeURIComponent(url.pathname.replace("/downloads/", ""))));
+      const requested = path.resolve(downloadsDir, decodeURIComponent(url.pathname.replace("/downloads/", "")));
+      if (!requested.startsWith(path.resolve(downloadsDir))) {
+        return sendJson(res, 403, { error: "Path traversal blocked" });
+      }
+      return serveFile(res, requested);
     }
 
     if (req.method === "GET" && url.pathname.startsWith("/reports/")) {
-      return serveFile(res, path.join(reportsDir, decodeURIComponent(url.pathname.replace("/reports/", ""))));
+      const requested = path.resolve(reportsDir, decodeURIComponent(url.pathname.replace("/reports/", "")));
+      if (!requested.startsWith(path.resolve(reportsDir))) {
+        return sendJson(res, 403, { error: "Path traversal blocked" });
+      }
+      return serveFile(res, requested);
     }
 
     if (req.method === "GET") {
