@@ -23,6 +23,18 @@ class AgentEngine:
         self.rate_config = config.get('rate_limit', {})
         self.request_count = 0
         self.last_request_time = 0
+
+
+        # API Key: 优先从环境变量读取，其次 config
+        api_key = (
+            os.environ.get('DEEPSEEK_API_KEY') or
+            os.environ.get('OPENAI_API_KEY') or
+            self.llm_config.get('api_key', '')
+        )
+        base_url = (
+            os.environ.get('LLM_BASE_URL') or
+            self.llm_config.get('base_url', 'https://api.deepseek.com/v1')
+        )
         
         # 初始化 HexStrike 桥接（如果配置了）
         self.hexstrike = None
@@ -34,23 +46,27 @@ class AgentEngine:
                 if hs_status['is_available']:
                     print(f"[+] HexStrike AI 后端已连接: {hs_status['server_url']}")
                 else:
-                    print(f"[!] HexStrike AI 配置已启用但 server 未在线，将使用本地执行")
+                    print(f"[!] HexStrike 配置已启用但 server 未在线，将使用本地执行")
             except ImportError:
                 print("[!] hexstrike_bridge.py 未找到，将使用本地执行")
             except Exception as e:
                 print(f"[!] HexStrike 初始化失败: {e}，将使用本地执行")
         
         # 初始化 LLM 客户端
+        if not api_key:
+            print("[!] 警告: 未配置 API Key (设置 DEEPSEEK_API_KEY 环境变量或 config.yaml)")
+        
         try:
             from openai import OpenAI
             self.client = OpenAI(
-                api_key=self.llm_config.get('api_key', ''),
-                base_url=self.llm_config.get('base_url', 'https://api.deepseek.com/v1')
+                api_key=api_key,
+                base_url=base_url
             )
         except ImportError:
             print("[!] 请安装 openai: pip install openai")
             raise
-    
+
+
     def think(self, prompt: str, context: str = "", system_prompt: str = None) -> str:
         """让 AI 思考/决策"""
         if not system_prompt:
@@ -77,7 +93,7 @@ class AgentEngine:
         
         try:
             response = self.client.chat.completions.create(
-                model=self.llm_config.get('model', 'deepseek-chat'),
+                model=os.environ.get('LLM_MODEL') or self.llm_config.get('model', 'deepseek-chat'),
                 messages=messages,
                 max_tokens=self.llm_config.get('max_tokens', 4096),
                 temperature=self.llm_config.get('temperature', 0.3),
@@ -85,7 +101,8 @@ class AgentEngine:
             return response.choices[0].message.content.strip()
         except Exception as e:
             return f"[LLM错误] {e}"
-    
+
+
     def execute_command(self, command: str, timeout: int = 120) -> dict:
         """
         执行系统命令（带限速 + HexStrike路由）
@@ -117,13 +134,15 @@ class AgentEngine:
             
             # 如果返回 fallback 标记，降级到本地执行
             if result.get("fallback"):
-                pass  # 继续到下面的本地执行
+                return self._execute_local(command, timeout)
             else:
                 result["command"] = command
                 return result
         
         # === 本地执行 ===
         return self._execute_local(command, timeout)
+
+
     def _execute_local(self, command: str, timeout: int = 120) -> dict:
         """本地 subprocess 执行命令"""
         try:
@@ -151,7 +170,8 @@ class AgentEngine:
             return {"success": False, "output": f"[超时] 命令超过 {timeout}s", "returncode": -1, "command": command, "via": "local"}
         except Exception as e:
             return {"success": False, "output": f"[异常] {e}", "returncode": -1, "command": command, "via": "local"}
-    
+
+
     def decide_next_action(self, phase: str, current_findings: dict, target: str) -> dict:
         """AI 决策下一步行动"""
         
@@ -188,7 +208,6 @@ URL: {current_findings.get('urls', [])[:20]}
         
         # 尝试解析 JSON
         try:
-            # 提取 JSON 部分
             if "```json" in response:
                 json_str = response.split("```json")[1].split("```")[0]
             elif "{" in response and "}" in response:

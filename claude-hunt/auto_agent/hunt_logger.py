@@ -32,14 +32,20 @@ class HuntLogger:
         self.file_mode = 'a' if os.path.exists(self.log_path) else 'w'
     
     def _get_desktop_path(self) -> str:
-        """获取桌面路径（跨平台）"""
+        """获取日志输出路径（跨平台 + Docker 兼容）"""
+        # 优先使用环境变量指定的输出目录
+        env_output = os.environ.get('BAI_LOG_DIR')
+        if env_output:
+            os.makedirs(env_output, exist_ok=True)
+            return env_output
+        
         system = platform.system()
         if system == "Windows":
             return os.path.join(os.path.expanduser("~"), "Desktop")
         elif system == "Darwin":  # macOS
             return os.path.join(os.path.expanduser("~"), "Desktop")
         else:  # Linux
-            # 先试 XDG
+            # 先试 XDG Desktop
             xdg = os.path.join(os.path.expanduser("~"), "Desktop")
             if os.path.exists(xdg):
                 return xdg
@@ -47,7 +53,10 @@ class HuntLogger:
             cn_desktop = os.path.join(os.path.expanduser("~"), "桌面")
             if os.path.exists(cn_desktop):
                 return cn_desktop
-            return os.path.expanduser("~")
+            # Docker/服务器环境: 使用 output 子目录
+            fallback = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+            os.makedirs(fallback, exist_ok=True)
+            return fallback
     
     def write_header(self, target: str, mode: str):
         """写日志头"""

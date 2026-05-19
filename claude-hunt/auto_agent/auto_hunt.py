@@ -55,19 +55,38 @@ except ImportError:
 
 
 def load_config():
-    """加载配置文件"""
+    """加载配置文件，支持环境变量覆盖"""
     import yaml
     config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
     
     if not os.path.exists(config_path):
         example_path = config_path + ".example"
-        console.print(f"[red]错误: 未找到 config.yaml[/red]")
-        console.print(f"请复制 config.yaml.example 为 config.yaml 并填入 API Key:")
-        console.print(f"  cp {example_path} {config_path}")
-        sys.exit(1)
+        # 如果有环境变量配置了 API Key，可以用 example 作为基础配置
+        if os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('OPENAI_API_KEY'):
+            config_path = example_path
+            console.print(f"[yellow]使用 config.yaml.example 作为基础配置（API Key 从环境变量读取）[/yellow]")
+        else:
+            console.print(f"[red]错误: 未找到 config.yaml[/red]")
+            console.print(f"请复制 config.yaml.example 为 config.yaml 并填入 API Key:")
+            console.print(f"  cp {example_path} {config_path}")
+            console.print(f"或设置环境变量: export DEEPSEEK_API_KEY=sk-xxx")
+            sys.exit(1)
     
     with open(config_path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    
+    # 环境变量覆盖配置
+    if os.environ.get('DEEPSEEK_API_KEY'):
+        config.setdefault('llm', {})['api_key'] = os.environ['DEEPSEEK_API_KEY']
+    elif os.environ.get('OPENAI_API_KEY'):
+        config.setdefault('llm', {})['api_key'] = os.environ['OPENAI_API_KEY']
+    
+    if os.environ.get('LLM_BASE_URL'):
+        config.setdefault('llm', {})['base_url'] = os.environ['LLM_BASE_URL']
+    if os.environ.get('LLM_MODEL'):
+        config.setdefault('llm', {})['model'] = os.environ['LLM_MODEL']
+    
+    return config
 
 
 def show_banner():

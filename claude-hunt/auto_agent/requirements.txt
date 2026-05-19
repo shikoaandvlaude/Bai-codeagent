@@ -1,0 +1,17 @@
+# Bai Auto-Hunt Agent Dependencies
+# pip install -r requirements.txt
+
+# LLM Client (DeepSeek / OpenAI compatible)
+openai>=1.0.0
+
+# Configuration
+pyyaml>=6.0
+
+# Terminal UI
+rich>=13.0.0
+
+# HTTP requests (HexStrike bridge, session monitor)
+requests>=2.31.0
+
+# Used by scope_updater, checkpoint_manager (stdlib but listed for clarity)
+# json, os, glob, fnmatch — all stdlib

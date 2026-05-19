@@ -1,6 +1,13 @@
 """Base Phase — 阶段基类"""
 
+import re
 import time
+import sys
+import os
+
+# 添加父目录到路径以导入 shell_utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from shell_utils import shell_quote, safe_echo_lines, sanitize_target, sanitize_url
 
 
 class BasePhase:
@@ -53,13 +60,8 @@ class BasePhase:
         # 记录日志
         self.logger.log_command(command, result, analysis)
         
-        # 记录响应到红线检查器（用于统计 403/404 比例）
-        if result.get("returncode") == 0:
-            self.redline.record_response(200, result.get("output", ""))
-        elif "403" in result.get("output", ""):
-            self.redline.record_response(403, result.get("output", ""))
-        elif "404" in result.get("output", ""):
-            self.redline.record_response(404, result.get("output", ""))
+        # 从输出中提取 HTTP 状态码并记录到红线检查器
+        self._record_status_codes(result)
         
         # 红线即时检查（每步都查）
         redline_result = self.redline.check({}, 0)
@@ -82,10 +84,70 @@ class BasePhase:
         # 限速
         time.sleep(self.engine.config.get('rate_limit', {}).get('delay_between_phases', 2))
     
+    def _record_status_codes(self, result: dict):
+        """
+        从命令输出中智能提取 HTTP 状态码并记录到红线检查器。
+        比旧版仅靠 returncode==0 判断 200 更准确。
+        """
+        output = result.get("output", "")
+        returncode = result.get("returncode", -1)
+        
+        # 尝试从输出中提取实际的 HTTP 状态码
+        # 匹配常见模式: "HTTP/1.1 403", "[403]", "status: 403", "HTTP_CODE:403"
+        status_patterns = [
+            r'HTTP/\d\.\d\s+(\d{3})',
+            r'\[(\d{3})\]',
+            r'HTTP_CODE:(\d{3})',
+            r'status[:\s]+(\d{3})',
+        ]
+        
+        found_codes = []
+        for pattern in status_patterns:
+            matches = re.findall(pattern, output)
+            found_codes.extend(int(m) for m in matches)
+        
+        if found_codes:
+            # 记录实际提取到的状态码
+            for code in found_codes[:20]:  # 最多记录20个，防止刷量
+                self.redline.record_response(code, output)
+        elif returncode == 0:
+            # 命令成功但没有明确状态码，记录为 200
+            self.redline.record_response(200, output)
+        elif returncode != 0 and output:
+            # 命令失败，尝试判断是网络错误还是 HTTP 错误
+            if "connection refused" in output.lower() or "timeout" in output.lower():
+                pass  # 网络错误不记录为 HTTP 状态码
+            elif "403" in output:
+                self.redline.record_response(403, output)
+            elif "404" in output:
+                self.redline.record_response(404, output)
+    
     def _safe_command(self, command: str, target: str) -> bool:
-        """检查命令是否安全"""
-        dangerous = ['sqlmap', 'rm ', 'wget -O', 'curl -o', '> /', 'sudo', 'chmod 777']
+        """检查命令是否安全（增强版）"""
+        # 绝对禁止的命令/模式
+        dangerous = [
+            'sqlmap', 'rm -rf', 'rm -f /', 'mkfs', 'dd if=',
+            ':(){', 'fork bomb', '> /dev/sda',
+            'wget -O', 'curl -o',  # 防止覆盖文件
+            '> /', 'sudo', 'chmod 777',
+            'eval ', 'exec ', 'python -c', 'python3 -c',
+            'bash -c', 'sh -c',  # 防止嵌套 shell
+            '/etc/passwd', '/etc/shadow',
+        ]
+        command_lower = command.lower()
         for d in dangerous:
-            if d in command:
+            if d.lower() in command_lower:
                 return False
+        
+        # 检查是否有重定向到敏感路径
+        if re.search(r'>\s*/(?:etc|usr|var|root|home)', command):
+            return False
+        
         return True
+    
+    def _pipe_lines(self, lines: list, max_lines: int = 100) -> str:
+        """
+        安全地将多行数据准备为管道输入。
+        使用 safe_echo_lines 防止 shell 注入。
+        """
+        return safe_echo_lines(lines, max_lines)
