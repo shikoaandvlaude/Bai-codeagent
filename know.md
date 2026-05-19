@@ -1450,25 +1450,201 @@ target:
 claude-hunt/auto_agent/
 ├── auto_hunt.py              # 主入口
 ├── agent_engine.py           # AI引擎(DeepSeek API)
+├── checkpoint_manager.py     # 【新】断点续跑
+├── false_positive_filter.py  # 【新】误报自动过滤
+├── scope_updater.py          # 【新】Scope 自动更新
 ├── hunt_logger.py            # 桌面日志(doing_日期.md)
 ├── redline_checker.py        # 红线审查
 ├── trace_analyzer.py         # 痕迹分析
-├── waf_adapter.py            # 【新】WAF自适应
-├── session_monitor.py        # 【新】Session监控
-├── asset_discovery.py        # 【新】资产关联发现
-├── intel_checker.py          # 【新】情报查重
+├── waf_adapter.py            # WAF自适应
+├── session_monitor.py        # Session监控
+├── asset_discovery.py        # 资产关联发现
+├── intel_checker.py          # 情报查重
 ├── config.yaml.example       # 配置模板
+├── Dockerfile.hunter         # 【新】Docker 打包
+├── docker-compose.hunter.yml # 【新】Docker Compose
+├── docker_start.sh           # 【新】一键启动脚本
 └── phases/
     ├── base.py               # 阶段基类
     ├── recon.py              # 信息搜集
     ├── params.py             # 参数发现
-    ├── hunt.py               # 漏洞检测【已扩展：竞态+IDOR】
+    ├── hunt.py               # 漏洞检测（竞态+IDOR）
     ├── validate.py           # 7问验证
     ├── verify.py             # 四证齐全
     └── report.py             # 报告生成
 ```
 
+---
 
+## Auto-Hunt Agent 增强功能
+
+以下是 Auto-Hunt Agent 的 4 个增强模块，提升稳定性和效率。
+
+### 断点续跑 (Checkpoint/Resume)
+
+**文件:** `checkpoint_manager.py`
+
+**功能:** 每个 Phase 完成后自动保存检查点，崩溃后可以精确恢复到上次进度。
+
+**工作方式:**
+```
+Phase 1 完成 → 保存 checkpoint_1.json
+Phase 2 完成 → 保存 checkpoint_2.json
+Phase 3 执行中崩溃...
+
+重新启动 → 检测到未完成检查点 → 从 Phase 3 继续
+```
+
+**存储位置:** `~/.bai-agent/checkpoints/{target}_{timestamp}.json`
+
+**检查点内容:**
+- target: 目标域名
+- mode: 运行模式 (auto/semi)
+- current_phase_index: 当前阶段索引
+- findings: 已发现的所有数据
+- step_count: 步骤计数
+- waf_result: WAF 检测结果
+- status: in_progress / completed
+
+**行为:**
+- auto 模式: 自动恢复上次进度（无需确认）
+- semi 模式: 提示用户选择是否恢复
+- 全部阶段完成后标记为 completed
+
+**配置:**
+```yaml
+checkpoint:
+  enabled: true
+  directory: "~/.bai-agent/checkpoints"
+  auto_resume: true
+```
+
+---
+
+### Docker 一键部署
+
+**文件:** `Dockerfile.hunter`, `docker-compose.hunter.yml`, `docker_start.sh`
+
+**功能:** 把所有安全工具链打包到 Docker 镜像中，新用户一条命令即可开始。
+
+**快速开始:**
+```bash
+cd claude-hunt/auto_agent/
+chmod +x docker_start.sh
+./docker_start.sh --target example.com --mode auto
+```
+
+**手动操作:**
+```bash
+# 1. 复制配置文件
+cp config.yaml.example config.yaml
+# 编辑 config.yaml 填入 API Key
+
+# 2. 构建镜像（包含所有28个安全工具）
+docker compose -f docker-compose.hunter.yml build
+
+# 3. 运行
+docker compose -f docker-compose.hunter.yml run --rm hunter --target example.com --mode semi
+
+# 4. 带 Web 面板一起启动
+docker compose -f docker-compose.hunter.yml --profile full up
+```
+
+**镜像包含:**
+- Python 3.11 + Go 1.24
+- 所有 Go 安全工具 (subfinder, httpx, nuclei, ffuf, gau, dalfox, katana, dnsx, naabu, gospider 等 28 个)
+- Python 安全工具 (paramspider, arjun, wafw00f, uro)
+- 系统工具 (nmap, jq, chromium, dnsutils)
+- Nuclei 模板（构建时自动更新）
+
+---
+
+### Scope 自动更新
+
+**文件:** `scope_updater.py`
+
+**功能:** 管理 SRC 平台的授权测试范围，防止测试已下架目标。
+
+**工作方式:**
+```
+启动 Agent → 检查 scope 数据是否过期（>24小时）
+  → 过期: 黄色警告提示用户更新
+  → 新鲜: 继续
+
+输入目标 → 检查是否在 scope 内
+  → 不在 scope: auto模式终止 / semi模式询问确认
+  → 在 scope: 继续执行
+```
+
+**手动更新 scope:**
+```bash
+# 从文件导入（每行一个域名/通配符）
+python auto_hunt.py --scope-update my_scope.txt
+
+# my_scope.txt 内容示例:
+# *.target.com
+# api.target.com
+# *.sub.target.com
+```
+
+**数据存储:** `~/.bai-agent/scope/{platform_name}.json`
+
+**配置:**
+```yaml
+scope_updater:
+  enabled: true
+  max_age_hours: 24
+  data_dir: "~/.bai-agent/scope"
+  platforms:
+    - "butian"
+    - "vulbox"
+```
+
+**建议用法:** 配合 cron 定时拉取最新 scope:
+```bash
+# crontab -e
+0 8 * * * python3 /path/to/auto_hunt.py --scope-update /path/to/latest_scope.txt
+```
+
+---
+
+### 误报过滤 (False Positive Filter)
+
+**文件:** `false_positive_filter.py`
+
+**功能:** 在验证阶段后自动识别常见误报模式，减少人工确认时间。
+
+**检测规则:**
+
+| 漏洞类型 | 误报特征 | 扣减可信度 |
+|----------|----------|-----------|
+| IDOR/越权 | 两账号响应体完全相同 | -40 |
+| CORS | 只反射 null 或特定域名 | -50 |
+| 并发竞态 | 服务端返回不同事务ID | -40 |
+| XSS | Payload 在注释/编码/JSON中 | -50 |
+| 通用 | 404页面/WAF拦截/蜜罐 | -30 |
+
+**可信度评分:**
+- 初始可信度: 80 分
+- 每命中一条规则扣减对应分数
+- 低于阈值 (默认30) 判定为误报
+
+**行为:**
+- auto 模式: 可信度 < 30 的自动移除，记录原因到日志
+- semi 模式: 展示可疑误报表格，让用户确认是否移除
+
+**配置:**
+```yaml
+false_positive_filter:
+  enabled: true
+  auto_threshold: 30
+  patterns:
+    - "idor"
+    - "cors"
+    - "race_condition"
+    - "xss"
+    - "generic"
+```
 
 ---
 

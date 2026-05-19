@@ -90,3 +90,29 @@ target:
     - "*.edu.cn"
     - "payment.target.com"
 
+# 断点续跑（崩溃恢复）
+checkpoint:
+  enabled: true               # 启用断点保存
+  directory: "~/.bai-agent/checkpoints"  # 检查点保存目录
+  auto_resume: true           # auto模式下自动恢复上次进度
+
+# Scope 自动更新（授权范围管理）
+scope_updater:
+  enabled: true               # 启用 scope 管理
+  max_age_hours: 24           # scope 数据超过24小时视为过期
+  data_dir: "~/.bai-agent/scope"  # scope 数据存储目录
+  platforms:                  # 关注的平台列表（用于提醒）
+    - "butian"                # 补天
+    - "vulbox"                # 漏洞盒子
+
+# 误报自动过滤
+false_positive_filter:
+  enabled: true               # 启用误报过滤
+  auto_threshold: 30          # auto模式下，可信度低于此值自动过滤
+  patterns:                   # 启用的检测模式
+    - "idor"                  # IDOR: 响应体相同检测
+    - "cors"                  # CORS: 非任意来源反射检测
+    - "race_condition"        # 竞态: 服务端正确处理检测
+    - "xss"                   # XSS: 不可执行上下文检测
+    - "generic"               # 通用: 404/WAF/蜜罐检测
+
