@@ -13,5 +13,9 @@ rich>=13.0.0
 # HTTP requests (HexStrike bridge, session monitor)
 requests>=2.31.0
 
+# ═══ 深度挖掘模块 (Deep Hunt) 新增依赖 ═══
+# 异步 HTTP 引擎（替代 subprocess curl，支持响应差异检测）
+httpx>=0.25.0
+
 # Used by scope_updater, checkpoint_manager (stdlib but listed for clarity)
 # json, os, glob, fnmatch — all stdlib

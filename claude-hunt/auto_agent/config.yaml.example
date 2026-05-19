@@ -116,3 +116,55 @@ false_positive_filter:
     - "xss"                   # XSS: 不可执行上下文检测
     - "generic"               # 通用: 404/WAF/蜜罐检测
 
+
+
+# ============================================================
+# 深度挖掘模块配置 (Deep Hunt — 新增)
+# 使用自研 HTTP 引擎 + 响应差异检测，替代纯工具编排
+# 需要额外依赖: pip install httpx
+# ============================================================
+deep_hunt:
+  enabled: true               # 启用深度挖掘阶段
+
+  # 代理配置（可接入 Burp/mitmproxy 查看流量）
+  proxy: ""                   # 例: "http://127.0.0.1:8080"
+  timeout: 15                 # 单次 HTTP 请求超时(秒)
+
+  # 主动 Fuzz 配置
+  enable_fuzz: true           # 启用主动参数 Fuzz
+  anomaly_threshold: 30       # 异常分阈值(0-100)，超过此值标记为发现
+  confirm_threshold: 60       # 二次确认阈值，超过此值认为可信
+  max_params_per_url: 10      # 每个URL最多测试的参数数
+
+  # IDOR 测试配置
+  enable_idor: true           # 启用系统性IDOR测试
+  # (双账号cookie在上方 idor 配置节中设置)
+
+  # 业务逻辑测试
+  enable_bizlogic: true       # 启用业务逻辑测试(竞态/金额/流程)
+
+  # 认证绕过测试
+  enable_auth_bypass: true    # 启用403绕过测试
+
+  # 验证配置
+  reproduction_attempts: 3    # 可复现性检查次数
+  
+  # WAF 绕过
+  enable_waf_bypass: true     # 对被拦截的payload自动尝试绕过
+  waf_type: ""                # 手动指定WAF类型(留空=自动检测)
+  # 可选值: cloudflare / aliyun / baota / tencent / modsecurity
+
+# 业务逻辑测试详细配置
+business_logic:
+  # 状态检查URL（用于验证竞态条件是否真的生效）
+  # 例如: 余额查询接口
+  state_url: ""               # 例: "https://target.com/api/wallet/balance"
+  state_field: ""             # JSON中的余额字段名, 例: "data.balance"
+  
+  # 价格篡改测试的目标（可选，不填则自动从URL中识别）
+  order_url: ""               # 下单接口URL
+  # order_body 示例: {"product_id": 1, "price": 100, "quantity": 1}
+
+  # 优惠券重复使用测试
+  coupon_url: ""              # 兑换接口URL
+  # coupon_body 示例: {"code": "PROMO50"}
