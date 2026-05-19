@@ -144,9 +144,8 @@ def run_agent(target, mode, config):
     scope_updater.warn_if_stale()
     
     # 检查目标是否在授权范围内
-    target_scope = config.get('target', {}).get('scope', [])
-    target_out_of_scope = config.get('target', {}).get('out_of_scope', [])
-    if target_scope and not scope_updater.is_target_in_scope(target, target_scope, target_out_of_scope):
+    merged_scope, merged_out_of_scope = scope_updater.get_merged_scope()
+    if merged_scope and not scope_updater.is_target_in_scope(target, merged_scope, merged_out_of_scope):
         console.print(f"[bold red]警告: {target} 不在配置的授权范围内![/bold red]")
         if mode == "semi":
             if not Confirm.ask("目标不在 scope 内，确认继续？", default=False):
@@ -219,6 +218,8 @@ def run_agent(target, mode, config):
             start_phase_index = checkpoint_data.get("current_phase_index", 0) + 1
             last_checkpoint_path = checkpoint_data.get("_checkpoint_path", "")
             console.print(f"  恢复到阶段 {start_phase_index}，已完成步数 {step_count}")
+            # 注意: Phase 0 (WAF检测) 总是重新执行（条件可能已变化）
+            # 资产发现结果已保存在 checkpoint 的 findings 中（由 ReconPhase 合并）
         elif mode == "semi":
             # 半自动模式：询问用户
             console.print(f"\n[bold yellow]发现上次未完成的检查点[/bold yellow]")
@@ -228,6 +229,8 @@ def run_agent(target, mode, config):
                 start_phase_index = checkpoint_data.get("current_phase_index", 0) + 1
                 last_checkpoint_path = checkpoint_data.get("_checkpoint_path", "")
                 console.print(f"  恢复到阶段 {start_phase_index}，已完成步数 {step_count}")
+                # 注意: Phase 0 (WAF检测) 总是重新执行（条件可能已变化）
+                # 资产发现结果已保存在 checkpoint 的 findings 中（由 ReconPhase 合并）
     
     try:
         for phase_idx, phase in enumerate(phases):

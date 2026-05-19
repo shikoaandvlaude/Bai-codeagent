@@ -3,9 +3,6 @@ False Positive Filter - 误报自动过滤模块
 在验证阶段后对漏洞进行二次筛选，自动识别常见误报模式
 """
 
-import hashlib
-from typing import Optional
-
 
 class FalsePositiveFilter:
     """误报自动过滤器"""
@@ -45,11 +42,14 @@ class FalsePositiveFilter:
             if 'generic' in self.enabled_patterns:
                 self._check_generic_patterns(vuln, vuln_type, detail)
             
+            # Clamp confidence to [0, 100]
+            vuln['confidence'] = max(0, min(100, vuln.get('confidence', 80)))
+
             # Compile fp_reason summary
             if vuln['fp_reasons']:
                 vuln['fp_reason'] = '; '.join(vuln['fp_reasons'])
-            else:
-                vuln.pop('fp_reasons', None)
+            # Always remove the working list
+            vuln.pop('fp_reasons', None)
         
         return vulns
     
