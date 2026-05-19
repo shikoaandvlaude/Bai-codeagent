@@ -29,6 +29,33 @@ claude
 
 ---
 
+## 架构选择：两条路径
+
+本项目有两个核心 AI 引擎，选择取决于你的预算和使用场景：
+
+- **DeepSeek API** = AI 决策大脑（便宜，用于 RedOps Agent 和 Auto-Hunt Agent）
+- **Claude Code** = 执行双手（需要 Pro/Max 订阅，全自动化程度最高）
+- **视觉 API**（通义千问 qwen-vl）= 截图识别（因为 DeepSeek 不能处理图片）
+
+```
+你有 Claude Pro/Max 订阅吗？
+│
+├── 有 → 用 claude-hunt（/autopilot 全自动）
+│         └── 最高效率，AI 自动跑全流程
+│
+└── 没有 → 你有 DeepSeek API Key 吗？
+            │
+            ├── 有 → 选择执行方式：
+            │         ├── 想要 Web 界面对话 → 用 RedOps Agent（python redops/main.py）
+            │         └── 想要全自动挂机跑 → 用 Auto-Hunt Agent（python auto_hunt.py）
+            │
+            └── 没有 → 去 platform.deepseek.com 注册，充10块钱能用很久
+```
+
+**最佳组合：** Claude Code 做高级决策 + Auto-Hunt Agent 跑重复性任务（省 Claude token）。
+
+---
+
 ## 项目结构
 
 ```
@@ -60,7 +87,7 @@ Bai-codeagent/
 ### 绝对不能做的事
 
 1. **不用自动化扫描器对实名SRC目标扫** — sqlmap/awvs/nessus/dirsearch 批量跑会产生大量异常请求，WAF会记录你的IP+账号，实名制下直接追溯到人。用 Fiddler/Burp 手动逐个测。
-2. **不把目标网站打崩** — 并发控制在 10-50 次，不对生产环境做压力测试。一旦导致服务不可用=犯法。
+2. **不把目标网站打崩** — 并发控制在 5 次以内，不对生产环境做压力测试。一旦导致服务不可用=犯法。
 3. **不涉及线上真实用户数据** — 最多用2个自己注册的账号验证，不查看/下载/传播真实用户的任何数据。
 4. **不使用在线XSS平台** — 如果有人使用同款平台被执法，平台日志里你也会被查。自己搭或用 alert(1) 截图证明。
 5. **没授权不碰** — 只在 SRC 授权范围内测试。不在列表里的资产碰了就是违法。
@@ -80,7 +107,7 @@ Bai-codeagent/
 - XSS：用 alert(1) 或截图证明即可
 - 支付漏洞：选便宜商品，成功后立即取消订单，录全程视频
 - 越权：只用自己注册的2个账号互相验证
-- 并发：控制在10-50次，成功后立即停止
+- 并发：控制在5次以内，成功后立即停止
 - SSRF：探测即可，不深入利用内网服务
 
 ---
@@ -167,7 +194,7 @@ site:xxx.com "手机号" OR "身份证"
 | nacos | nacos | nacos |
 | tomcat | tomcat | tomcat |
 | weblogic | weblogic | weblogic |
-| rabbitmq | admin | guest |
+| rabbitmq | guest | guest |
 | druid | admin | 123456 |
 | 若依 | admin | admin123 |
 
@@ -420,7 +447,7 @@ python3 claude-hunt/tools/race_tester.py \
   --method POST \
   --headers '{"Cookie":"session=xxx","Content-Type":"application/json"}' \
   --body '{"amount":1}' \
-  --threads 20
+  --threads 5
 ```
 
 ### idor_diff.py — 越权对比
@@ -506,7 +533,7 @@ nuclei -l targets.txt -t claude-hunt/tools/nuclei-templates-cn/ -severity critic
 - 遵守法律法规
 - SRC测试不要影响线上业务
 - 不对未授权目标发起扫描
-- 并发测试控制在10-50次
+- 并发测试控制在5次以内
 - 数据库漏洞只读2-3行验证
 - 不用在线XSS平台
 - 最多用2个自己注册的账号
@@ -531,7 +558,7 @@ nuclei -l targets.txt -t claude-hunt/tools/nuclei-templates-cn/ -severity critic
 | **naabu** | 快速端口扫描 | `naabu -host target.com -rate 100 -c 10` | 对单目标100/秒足够 |
 | **gau/waybackurls** | 查第三方数据源 | 无需限速 | 不直接请求目标，安全 |
 | **subfinder** | 查第三方数据源 | 无需限速 | 不直接请求目标，安全 |
-| **race_tester.py** | 并发20-50 | `--threads 20` 已硬限制 | 一次测完就停，不反复跑 |
+| **race_tester.py** | 并发5 | `--threads 5` 已硬限制 | 一次测完就停，不反复跑 |
 | **idor_diff.py** | 逐个请求 | 默认安全 | 每个ID只发1个请求 |
 | **browser_auto.py** | 正常浏览速度 | 默认安全 | 和人操作一样 |
 
@@ -660,6 +687,8 @@ llm:
 | recon-ranker | 排序攻击面，优先测高价值目标 |
 | web3-auditor | 智能合约审计（10种漏洞类） |
 | token-auditor | Meme币/Token rug pull检测 |
+
+> **注意：** web3-auditor 和 token-auditor 为实验性模块。国内大多数 SRC 平台不接收 Web3 类漏洞，这两个模块更适合 HackerOne/Immunefi 等国际平台的区块链赏金项目。
 
 **22个 Slash Commands：**
 - `/recon` `/hunt` `/validate` `/report` — 核心四命令
@@ -1149,24 +1178,76 @@ python auto_hunt.py --target example.com --mode semi   # 半自动
 
 ### 配置说明（config.yaml）
 
+以下是完整的 `config.yaml` 配置模板，包含所有可配置项：
+
 ```yaml
-# 必填
+# ============================================================
+# Auto-Hunt Agent 完整配置模板
+# 复制为 config.yaml，填入你的 Key 和 Cookie 即可使用
+# ============================================================
+
+# ---- LLM 配置（必填）----
+# DeepSeek 做 AI 决策（便宜好用）
 llm:
-  api_key: "sk-你的DeepSeek-Key"   # DeepSeek API Key
-  base_url: "https://api.deepseek.com/v1"
-  model: "deepseek-chat"
+  provider: "deepseek"                      # deepseek / openai / anthropic / qwen
+  api_key: "sk-你的DeepSeek-Key"            # DeepSeek API Key
+  base_url: "https://api.deepseek.com/v1"   # API 地址
+  model: "deepseek-chat"                    # 模型名称
 
-# 可选调整
+# ---- 视觉 API（截图识别用，DeepSeek不支持图片所以需要单独配）----
+vision:
+  provider: "qwen"                          # qwen / openai
+  api_key: "你的通义千问key"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  model: "qwen-vl-plus"
+
+# ---- 限速配置 ----
 rate_limit:
-  requests_per_second: 3    # 有WAF降到1
-  max_total_requests: 500   # 单次最大请求数
+  requests_per_second: 3                    # 每秒请求数（有WAF降到1）
+  max_total_requests: 500                   # 单次运行最大请求总数
+  random_delay_min: 0.5                     # 随机延迟最小值（秒）
+  random_delay_max: 2.0                     # 随机延迟最大值（秒）
 
+# ---- 红线规则 ----
 redline:
-  max_403_consecutive: 5    # 连续403阈值
-  check_interval: 10        # 每N步审查一次
+  max_403_consecutive: 5                    # 连续N个403立即停止
+  max_404_ratio: 0.95                       # 404比例超过此值停止
+  max_total_requests: 500                   # 总请求上限
+  check_interval: 10                        # 每N步做一次红线审查
+  forbidden_paths:                          # 碰到这些路径立即停止
+    - "/admin/delete"
+    - "/system/drop"
+    - "/user/export_all"
 
+# ---- Agent 行为 ----
 agent:
-  trace_analysis_interval: 5  # 每N步做痕迹分析
+  trace_analysis_interval: 5                # 每N步做痕迹分析
+  max_steps_per_phase: 50                   # 每阶段最大步数
+  auto_mode_pause_on_high: true             # 全自动模式发现高危时暂停
+
+# ---- Session 监控（防止账号被风控后继续发请求）----
+session_monitor:
+  check_url: ""                             # 登录后能正常访问的URL
+  cookie: ""                                # 你的 Cookie
+  expected_keyword: ""                      # 正常响应中应包含的关键词
+  check_interval: 10                        # 每N步检查一次Session状态
+
+# ---- IDOR 双账号越权检测 ----
+idor:
+  cookie_a: ""                              # 账号A的Cookie
+  cookie_b: ""                              # 账号B的Cookie
+
+# ---- 目标与资产发现 ----
+target:
+  domain: ""                                # 目标域名
+  company_name: ""                          # 公司名（用于AI推测关联资产）
+
+# ---- HexStrike 集成（可选增强后端）----
+hexstrike:
+  enabled: false                            # true=启用, false=禁用（默认）
+  server_url: "http://127.0.0.1:8888"      # HexStrike server 地址
+  timeout: 120                              # 单条命令超时（秒）
+  fallback_to_local: true                   # server掉线时自动降级为本地执行
 ```
 
 ### 注意事项
@@ -1393,13 +1474,7 @@ claude-hunt/auto_agent/
 
 ## HexStrike AI 集成（可选增强后端）
 
-### 什么是 HexStrike
-
-[HexStrike AI](https://github.com/0x4m4/hexstrike-ai) 是一个开源的 MCP 渗透测试框架，封装了 **150+ 安全工具**，提供：
-- 工具参数自动优化（AI选择最佳nmap/nuclei参数）
-- 智能缓存（相同目标不重复扫）
-- 错误恢复（命令失败自动重试）
-- 进程管理（并发控制+超时处理）
+[HexStrike AI](https://github.com/0x4m4/hexstrike-ai) 是一个开源的 MCP 渗透测试框架，封装了 **150+ 安全工具**，提供工具参数自动优化、智能缓存、错误恢复和进程管理。
 
 ### 跟 Auto-Hunt Agent 的关系
 
@@ -1425,97 +1500,24 @@ claude-hunt/auto_agent/
 └──────────────┘  └──────────────┘
 ```
 
-**简单说：**
 - **有 HexStrike** → 工具命令走 API（更智能的参数+缓存+错误恢复）
 - **没有 HexStrike** → 直接本地执行（跟以前一样，完全不影响）
 - **HexStrike 中途掉线** → 自动降级为本地执行（不中断流程）
 
-### 三种使用方式
-
-| 方式 | 适合谁 | 配置 |
-|------|--------|------|
-| **A. 不用HexStrike** | 大多数人 | `hexstrike.enabled: false`（默认） |
-| **B. 本地跑HexStrike** | 想要参数优化+缓存 | 另开终端跑server，改enabled为true |
-| **C. 远程HexStrike** | 有专门的渗透VPS | 改server_url为远程IP |
-
-### 方式A: 不用 HexStrike（默认）
-
-什么都不用改，`config.yaml` 里 `hexstrike.enabled: false` 就行。所有命令直接本地执行。
-
-### 方式B: 本地跑 HexStrike
-
-```bash
-# 终端1: 启动 HexStrike server
-git clone https://github.com/0x4m4/hexstrike-ai.git
-cd hexstrike-ai
-python3 -m venv hexstrike-env
-source hexstrike-env/bin/activate
-pip3 install -r requirements.txt
-python3 hexstrike_server.py
-# 看到 "Server starting on 127.0.0.1:8888" 就OK
-
-# 终端2: 跑你的 Auto-Hunt Agent
-cd claude-hunt/auto_agent
-# 编辑 config.yaml:
-#   hexstrike:
-#     enabled: true
-#     server_url: "http://127.0.0.1:8888"
-python auto_hunt.py --target example.com --mode semi
-```
-
-### 方式C: 远程 HexStrike（渗透VPS）
+### 配置
 
 ```yaml
 # config.yaml
 hexstrike:
-  enabled: true
-  server_url: "http://你的VPS-IP:8888"
-  timeout: 180        # 远程可能慢一点
-  fallback_to_local: true
+  enabled: false              # true=启用, false=禁用（默认）
+  server_url: "http://127.0.0.1:8888"   # HexStrike server 地址
+  timeout: 120                # 单条命令超时（秒）
+  fallback_to_local: true     # server 掉线时自动降级为本地执行
 ```
 
-### 配置说明
+**注意：**
+- HexStrike 完全可选，不装不影响任何功能
+- 你的 Auto-Hunt Agent 的红线/限速/Session 监控仍然生效，HexStrike 只是执行层
+- 日志中会标记每条命令是通过 `[via: hexstrike]` 还是 `[via: local]` 执行的
 
-```yaml
-hexstrike:
-  enabled: false              # true=启用, false=禁用(默认)
-  server_url: "http://127.0.0.1:8888"   # HexStrike server地址
-  timeout: 120                # 单条命令超时(秒)
-  fallback_to_local: true     # server掉线时自动降级为本地执行
-```
-
-### 自动路由逻辑
-
-当 `enabled: true` 且 server 在线时：
-
-1. Agent 要执行 `subfinder -d target.com`
-2. `hexstrike_bridge.py` 检查: subfinder 在工具映射表里吗？→ 是
-3. 通过 HTTP POST 发给 HexStrike API
-4. HexStrike 优化参数、执行、返回结果
-5. Agent 拿到结果继续下一步
-
-**如果 server 掉线：**
-1. API 调用失败
-2. Bridge 标记 `is_available = False`
-3. 自动 fallback 到本地 `subprocess.run()`
-4. 后续命令全部本地执行
-5. 日志记录 `[via: local]` 标记
-
-### HexStrike 带来的额外能力
-
-| 能力 | 没有HexStrike | 有HexStrike |
-|------|--------------|------------|
-| 工具参数 | 你自己写/AI建议 | HexStrike AI自动优化 |
-| 缓存 | 无（每次重新跑） | 智能缓存（相同目标不重复扫） |
-| 错误恢复 | 命令失败就失败 | 自动重试+降级策略 |
-| 进程管理 | 简单timeout | 完整进程监控+资源限制 |
-| 工具覆盖 | 28个Go+7个Python | 150+工具（含二进制/CTF/云安全） |
-| 浏览器Agent | 需要自己写playwright | HexStrike内置Chrome自动化 |
-
-### 注意事项
-
-1. **HexStrike 完全可选** — 不装不影响任何功能
-2. **安全性** — HexStrike server 默认只监听 127.0.0.1，不暴露到外网
-3. **资源占用** — HexStrike server 本身很轻量（Flask），但执行工具时会占资源
-4. **SRC红线** — 你的 Auto-Hunt Agent 的红线/限速/Session监控仍然生效，HexStrike 只是执行层
-5. **日志区分** — 日志中会标记每条命令是通过 `[via: hexstrike]` 还是 `[via: local]` 执行的
+详细安装和使用说明见 [HexStrike 官方仓库](https://github.com/0x4m4/hexstrike-ai)。
