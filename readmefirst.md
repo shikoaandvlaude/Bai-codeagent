@@ -326,3 +326,201 @@ npm start
 
 Web面板提供：目标管理、信息搜集计划生成、漏洞模板推荐、报告生成、红线提醒。
 适合不用 Claude Code 时的辅助工作。
+
+---
+
+## 完整工具清单（claude-hunt/tools/）
+
+### HackerOne 专用工具
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `h1_idor_scanner.py` | HackerOne GraphQL IDOR 跨用户越权扫描 | `python3 h1_idor_scanner.py --token-a TOKEN_A --token-b TOKEN_B --report-id ID` |
+| `h1_race.py` | HackerOne 竞态条件测试（赏金双花/2FA限速/负数赏金） | `python3 h1_race.py --token-a TOKEN --test bounty --report-id ID` |
+| `h1_oauth_tester.py` | HackerOne OAuth/认证流测试（state CSRF/redirect_uri/host header） | `python3 h1_oauth_tester.py --token TOKEN` |
+| `h1_mutation_idor.py` | HackerOne GraphQL Mutation 越权（以他人身份执行特权操作） | `python3 h1_mutation_idor.py --token-a TOKEN_A --token-b TOKEN_B` |
+| `hai_probe.py` | HackerOne Hai AI Copilot API 指纹探测 | `python3 hai_probe.py --token YOUR_TOKEN --api-name YOUR_API_NAME` |
+| `hai_browser_recon.js` | DevTools 控制台脚本，拦截 Hai 的 GraphQL API | 在 hackerone.com 报告页 → DevTools → Console → 粘贴执行 |
+
+### AI/LLM 攻击工具
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `sneaky_bits.py` | 隐形 Prompt 注入编码（U+2062/U+2064 隐藏指令） | `python3 sneaky_bits.py encode "IGNORE PREVIOUS INSTRUCTIONS"` |
+| `hai_payload_builder.py` | VAPT Payload 库 + LLM 注入生成（NoSQL/SSTI/Cmd/MFA/SAML） | `python3 hai_payload_builder.py --type nosql` 或 `--attack system_prompt` |
+
+### 业务逻辑漏洞工具
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `race_tester.py` | 并发竞态测试（领券/提现/签到） | `python3 race_tester.py --url URL --method POST --headers '{}' --body '{}' --threads 20` |
+| `idor_diff.py` | IDOR 越权自动对比（水平+垂直+无认证） | `python3 idor_diff.py --url "URL/{ID}" --ids "123,456" --auth-a "Cookie: A" --auth-b "Cookie: B"` |
+| `jwt_attack.py` | JWT 攻击（alg:none/弱密钥爆破/payload篡改/过期绕过） | `python3 jwt_attack.py --token "eyJ..." --all --verify-url URL` |
+| `zero_day_fuzzer.py` | 零日发现 Fuzzer（CORS/CRLF/Host注入/403绕过/缓存投毒） | `python3 zero_day_fuzzer.py https://target.com --deep` |
+
+### 特定平台测试
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `zendesk_idor_test.py` | Zendesk 平台越权测试（跨组织数据访问） | `export ZENDESK_SUBDOMAIN=xxx && python3 zendesk_idor_test.py` |
+
+### 信息搜集与分析
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `js_extractor.py` | JS 敏感信息提取（API端点/密钥/Token/AWS Key） | `python3 js_extractor.py --crawl "https://target.com"` |
+| `screenshot_ocr.py` | 截图分析+验证码识别（Qwen-VL/GPT-4o/Tesseract） | `python3 screenshot_ocr.py --captcha captcha.png` |
+| `intel_engine.py` | 情报引擎（CVE/历史漏洞查询） | 被 hunt.py 内部调用 |
+| `token_scanner.py` | Token/密钥泄露扫描 | 被 hunt.py 内部调用 |
+| `target_selector.py` | 目标优先级选择 | 被 /surface 命令调用 |
+| `mindmap.py` | 攻击面思维导图生成 | 被 /recon 命令调用 |
+
+### 浏览器/GUI 自动化
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `browser_auto.py` | Playwright 无头浏览器（登录/表单/Cookie提取/请求拦截） | `python3 browser_auto.py --url URL --fill "#user=admin" --click "button" --screenshot out.png` |
+| `ui_controller.py` | 桌面 GUI 自动化（pyautogui 鼠标键盘/滑块验证码） | `python3 ui_controller.py --click 500 300` 或 `--drag 200 300 500 300` |
+
+### 认证与会话管理
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `auth_session.py` | 认证会话管理（Cookie/Token 持久化） | 被 hunt.py `--cookie` 参数调用 |
+| `credential_store.py` | 凭证安全存储 | 内部模块 |
+| `scope_checker.py` | Scope 授权范围检查（每个请求前验证） | 被 /scope 命令和 autopilot 调用 |
+
+### 记忆与学习
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `learn.py` | 漏洞模式学习（成功技术记录） | 被 /remember 命令调用 |
+| `memory_gc.py` | 记忆文件清理（10MB上限轮换） | 被 /memory-gc 命令调用 |
+
+### 核心引擎
+
+| 文件 | 功能 | 用法 |
+|------|------|------|
+| `hunt.py` | 主狩猎编排器（完整流程串联） | `python3 hunt.py --target domain.com` 或 `--agent` 模式 |
+| `recon_adapter.py` | 侦察工具适配器（统一输出格式） | 内部模块 |
+| `validate.py` | 漏洞验证器（7问门控） | 被 /validate 命令调用 |
+| `dashboard.py` | 终端仪表盘（进度/发现统计） | 内部模块 |
+
+---
+
+## Shell 脚本工具（claude-hunt/tools/）
+
+| 文件 | 功能 | Claude Code 命令 |
+|------|------|-----------------|
+| `recon_engine.sh` | 核心侦察引擎（subfinder→httpx→katana→gau） | `/recon` |
+| `vuln_scanner.sh` | 漏洞扫描（nuclei+dalfox+crlfuzz） | `/hunt` |
+| `bypass_403.sh` | 403 绕过技术（方法切换/Header/路径变异） | `/bypass-403` |
+| `param_discovery.sh` | 参数发现（paramspider+arjun+gf） | `/param-discover` |
+| `secrets_hunter.sh` | 密钥泄露扫描（trufflehog+gitleaks） | `/secrets-hunt` |
+| `takeover_scanner.sh` | 子域名接管检测（subjack+subzy） | `/takeover` |
+| `cloud_recon.sh` | 云基础设施侦察（S3/Azure/GCP Bucket） | `/cloud-recon` |
+| `cve_scan.sh` | CVE 模板扫描（nuclei CVE标签） | `/scan-cves` |
+| `scope_aggregator.sh` | 多来源 Scope 聚合 | `/scope-aggregate` |
+| `cicd_scanner.sh` | CI/CD 管道扫描（GitHub Actions/GitLab CI 配置泄露） | 内部使用 |
+| `external_arsenal.sh` | 外部工具状态检查 | `/arsenal` |
+| `h1_run.sh` | HackerOne 工具执行封装 | 内部使用 |
+| `_auth_helper.sh` | 认证辅助（Cookie/Token 传递） | 内部使用 |
+
+---
+
+## 国产 Nuclei 模板（claude-hunt/tools/nuclei-templates-cn/）
+
+```bash
+nuclei -l targets.txt -t claude-hunt/tools/nuclei-templates-cn/ -severity critical,high
+```
+
+| 模板 | 检测目标 |
+|------|---------|
+| `thinkphp-rce-5023.yaml` | ThinkPHP 5.0.23 RCE |
+| `thinkphp-5-info-leak.yaml` | ThinkPHP 5.x 信息泄露 |
+| `shiro-default-key.yaml` | Apache Shiro 默认密钥反序列化 |
+| `nacos-unauth.yaml` | Nacos 未授权访问 |
+| `springboot-actuator.yaml` | SpringBoot Actuator 端点暴露 |
+| `swagger-api-leak.yaml` | Swagger UI 接口文档泄露 |
+| `druid-unauth.yaml` | Druid 监控面板未授权 |
+| `redis-unauth.yaml` | Redis 未授权访问 |
+| `weaver-oa-rce.yaml` | 泛微 OA 远程代码执行 |
+| `yongyou-nc-rce.yaml` | 用友 NC 远程代码执行 |
+| `ruoyi-default-creds.yaml` | 若依系统默认口令 |
+
+---
+
+## Auto-Hunt Agent（claude-hunt/auto_agent/）
+
+独立的 AI 自动化挖掘引擎，用 DeepSeek API 驱动，不依赖 Claude Code。
+
+```bash
+cd claude-hunt/auto_agent
+pip install -r requirements.txt
+cp config.yaml.example config.yaml  # 填入 API Key
+python auto_hunt.py --target example.com --mode auto
+```
+
+| 模块 | 功能 |
+|------|------|
+| `auto_hunt.py` | 主入口（选模式→选目标→跑全流程） |
+| `agent_engine.py` | AI 引擎（DeepSeek调用+命令执行+决策） |
+| `waf_adapter.py` | WAF 指纹自适应（Cloudflare/阿里云/宝塔/腾讯云） |
+| `session_monitor.py` | Session 状态监控（被踢→停/429→降速） |
+| `asset_discovery.py` | 资产关联发现（FOFA证书/AI推测/alterx变异） |
+| `intel_checker.py` | 提交前情报查重 |
+| `redline_checker.py` | 红线审查（403/404比例/禁止路径） |
+| `trace_analyzer.py` | 痕迹分析（AI找可挖线索） |
+| `hunt_logger.py` | 桌面日志（doing_日期.md） |
+| `checkpoint_manager.py` | 断点续跑（崩溃恢复） |
+| `false_positive_filter.py` | 误报自动过滤 |
+| `scope_updater.py` | Scope 自动更新管理 |
+| `hexstrike_bridge.py` | HexStrike AI Server 桥接（150+工具优化层） |
+| `shell_utils.py` | 安全 Shell 命令构建（防注入） |
+
+### Phases 阶段模块
+
+| 阶段 | 工具链 |
+|------|--------|
+| `phases/recon.py` | subfinder → dnsx → httpx → gau → waybackurls |
+| `phases/params.py` | paramspider → gf(xss/ssrf) → arjun |
+| `phases/hunt.py` | nuclei → dalfox → CORS → trufflehog → 竞态 → IDOR |
+| `phases/validate.py` | AI 7问门控验证 |
+| `phases/verify.py` | 四证齐全（代码路径/运行时/证据/反证） |
+| `phases/report.py` | 中国 SRC 格式报告生成 |
+
+---
+
+## RedOps Agent（redops/）
+
+基于 LLM 的 Web 对话式渗透测试 Agent。
+
+```bash
+cd redops
+pip install -r requirements.txt
+python main.py
+# 浏览器访问 http://localhost:8000
+```
+
+| 模块 | 功能 |
+|------|------|
+| `app/core/llm_agent.py` | LLM 决策核心（DeepSeek/OpenAI/Qwen） |
+| `app/core/executor.py` | 命令执行器 |
+| `app/core/skill_registry.py` | 渗透技能注册系统 |
+| `app/core/memory_system.py` | 跨会话记忆 |
+| `app/integrations/fofa.py` | FOFA 搜索引擎集成 |
+| `app/integrations/telegram_bot.py` | Telegram 通知 |
+| `app/integrations/qq_bot.py` | QQ Bot 通知 |
+| `desktop_pet.py` | 桌面宠物界面 |
+
+---
+
+## MCP Server 集成（claude-hunt/mcp/）
+
+| 目录 | 功能 | 配置 |
+|------|------|------|
+| `hackerone-mcp/` | HackerOne 公开 API（搜索已披露报告/项目统计/政策） | MCP JSON-RPC |
+| `fiddler-mcp/` | Fiddler SAZ 抓包分析（提取端点/搜索参数/敏感信息） | 需设 `FIDDLER_EXPORT_DIR` |
+| `burp-mcp-client/` | Burp Suite MCP 桥接 | 需 Burp API Key |
+| `caido-mcp-client/` | Caido 代理集成 | README only |
+| `redops-mcp/` | RedOps Agent MCP 桥接 | 需 RedOps 运行中 |
