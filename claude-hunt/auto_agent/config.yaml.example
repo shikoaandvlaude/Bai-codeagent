@@ -1,0 +1,92 @@
+# ============================================================
+# Bai Auto-Hunt Agent 配置文件
+# 复制为 config.yaml 并填入你的 API Key
+# ============================================================
+
+# LLM 配置（支持 DeepSeek / OpenAI 兼容接口）
+llm:
+  provider: "deepseek"
+  api_key: "sk-你的DeepSeek-Key"
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+  # 备选模型
+  # model: "deepseek-reasoner"  # 推理更强但更慢
+  max_tokens: 4096
+  temperature: 0.3  # 低温度=更确定性的决策
+
+# ============================================================
+# HexStrike AI 后端（可选）
+# 如果你本地跑了 HexStrike server，开启后工具命令将通过
+# HexStrike API 执行（享受参数优化+智能缓存+错误恢复）
+# 没有 HexStrike 也能正常跑（自动降级为本地subprocess）
+# ============================================================
+hexstrike:
+  enabled: false              # 设为 true 启用 HexStrike 后端
+  server_url: "http://127.0.0.1:8888"   # HexStrike server 地址
+  timeout: 120                # 单次命令超时(秒)
+  fallback_to_local: true     # server掉线时自动降级为本地执行
+  # 使用方式:
+  #   1. git clone https://github.com/0x4m4/hexstrike-ai.git
+  #   2. cd hexstrike-ai && pip install -r requirements.txt
+  #   3. python3 hexstrike_server.py  (另开一个终端)
+  #   4. 这里 enabled 改为 true
+  #   5. 运行 auto_hunt.py，工具命令将通过 HexStrike API 执行
+
+# 安全限速
+rate_limit:
+  requests_per_second: 3      # 有WAF时降到1
+  max_concurrent: 2
+  delay_between_phases: 5     # 每个阶段之间等待秒数
+  max_total_requests: 500     # 单次运行最大请求数（超过就停）
+
+# 红线规则
+redline:
+  check_interval: 10          # 每10步做一次红线审查
+  max_404_ratio: 0.8          # 404超过80%就停（可能被ban）
+  max_403_consecutive: 5      # 连续5个403就停
+  forbidden_keywords:         # 响应中出现这些就停
+    - "访问被拒绝"
+    - "IP已被封禁"
+    - "请完成人机验证"
+    - "滑块验证"
+  forbidden_paths:            # 绝对不碰的路径
+    - "/admin/delete"
+    - "/api/user/all"
+    - "/database/export"
+
+# 日志
+log:
+  desktop: true               # 输出到桌面
+  filename_prefix: "doing"    # doing_2025-06-18.md
+  verbose: true               # 记录详细命令输出
+
+# Agent 行为
+agent:
+  auto_mode_confirm_critical: true   # 全自动模式下，发现高危仍暂停确认
+  max_phase_time: 600         # 单阶段最长10分钟
+  trace_analysis_interval: 5  # 每5步做一次痕迹分析
+
+# Session 监控（账号状态检测）
+session_monitor:
+  check_url: ""               # 填一个登录后能正常访问的URL(如个人中心)
+  cookie: ""                  # 你的登录Cookie
+  expected_keyword: ""        # 页面中应该出现的关键词(如用户名)
+  check_interval: 10          # 每10步检查一次Session
+
+# IDOR 多账号对比
+idor:
+  cookie_a: ""                # 账号A的Cookie
+  cookie_b: ""                # 账号B的Cookie (用A的Cookie访问B的资源)
+  # 配置后 Agent 会自动从URL中识别IDOR接口并交叉验证
+
+# 目标 + 资产发现
+target:
+  domain: ""                  # 运行时输入
+  company_name: ""            # 公司名(用于ICP备案关联/天眼查穿透)
+  scope:
+    - "*.target.com"
+  out_of_scope:
+    - "*.gov.cn"
+    - "*.edu.cn"
+    - "payment.target.com"
+

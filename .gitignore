@@ -12,3 +12,4 @@ workspace/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+__pycache__/

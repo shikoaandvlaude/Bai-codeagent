@@ -15,6 +15,8 @@ import { createFingerprintService } from "./src/services/fingerprintService.js";
 import { writeAuditHtmlReport } from "./src/services/reportWriter.js";
 import { createSettingsStore } from "./src/services/settingsStore.js";
 import { createTaskStore } from "./src/store/taskStore.js";
+import { SrcScoutAgent } from "./src/agents/srcScoutAgent.js";
+import { writeSrcReport, writeSrcHtmlReport } from "./src/services/srcReportWriter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,8 +25,10 @@ const downloadsDir = path.join(__dirname, "workspace", "downloads");
 const reportsDir = path.join(__dirname, "workspace", "reports");
 const memoryFile = path.join(__dirname, "workspace", "memory", "project-memory.json");
 const settingsFile = path.join(__dirname, "workspace", "settings", "app-settings.json");
+const srcTargetFile = path.join(__dirname, "workspace", "src-hunt", "targets.json");
 
 const settingsStore = createSettingsStore({ filePath: settingsFile });
+const srcScoutAgent = new SrcScoutAgent({ targetFilePath: srcTargetFile });
 const scoutAgent = new FrameworkScoutAgent({
   downloadsDir,
   getGithubConfig: async () => (await settingsStore.read()).github
@@ -197,6 +201,113 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname.startsWith("/reports/")) {
       return serveFile(res, path.join(reportsDir, decodeURIComponent(url.pathname.replace("/reports/", ""))));
     }
+
+    // ============ SRC 挖掘 API ============
+
+    if (req.method === "GET" && url.pathname === "/api/src/targets") {
+      const targets = await srcScoutAgent.getTargets();
+      return sendJson(res, 200, targets);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/src/targets") {
+      const body = await readJson(req);
+      const result = await srcScoutAgent.addTarget(body);
+      return sendJson(res, result.error ? 400 : 201, result);
+    }
+
+    if (req.method === "DELETE" && /^\/api\/src\/targets\/[^/]+$/.test(url.pathname)) {
+      const targetId = url.pathname.split("/").pop();
+      const result = await srcScoutAgent.removeTarget(targetId);
+      return sendJson(res, 200, result);
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/platforms") {
+      const platforms = await srcScoutAgent.getPlatforms();
+      return sendJson(res, 200, platforms);
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/recon") {
+      const domain = url.searchParams.get("domain") || "";
+      if (!domain) return sendJson(res, 400, { error: "Missing domain parameter" });
+      const plan = srcScoutAgent.generateReconPlan(domain);
+      return sendJson(res, 200, plan);
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/f5-decode") {
+      const cookie = url.searchParams.get("cookie") || "";
+      const ip = srcScoutAgent.decodeF5Ltm(cookie);
+      return sendJson(res, 200, { cookie, ip });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/dorks") {
+      const domain = url.searchParams.get("domain") || "example.com";
+      return sendJson(res, 200, {
+        google: srcScoutAgent.getSearchDorks("google", domain),
+        fofa: srcScoutAgent.getSearchDorks("fofa", domain),
+        zoomeye: srcScoutAgent.getSearchDorks("zoomeye", domain)
+      });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/credentials") {
+      return sendJson(res, 200, srcScoutAgent.getAllDefaultCredentials());
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/templates") {
+      return sendJson(res, 200, srcScoutAgent.getVulnTemplates());
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/templates/recommend") {
+      const feature = url.searchParams.get("feature") || "";
+      return sendJson(res, 200, srcScoutAgent.recommendTemplates(feature));
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/src/templates/analyze-params") {
+      const body = await readJson(req);
+      const params = Array.isArray(body?.params) ? body.params : [];
+      return sendJson(res, 200, srcScoutAgent.analyzeParams(params));
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/templates/categories") {
+      return sendJson(res, 200, srcScoutAgent.getVulnCategories());
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/src/report") {
+      const body = await readJson(req);
+      const [mdReport, htmlReport] = await Promise.all([
+        writeSrcReport({ reportsDir, finding: body }),
+        writeSrcHtmlReport({ reportsDir, finding: body })
+      ]);
+      return sendJson(res, 200, { ...htmlReport, mdReport });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/redlines") {
+      return sendJson(res, 200, srcScoutAgent.getAllRedLines());
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/src/redlines/check") {
+      const body = await readJson(req);
+      const result = srcScoutAgent.checkRedLines(body?.action || "");
+      return sendJson(res, 200, result);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/src/analyze-function") {
+      const body = await readJson(req);
+      const result = srcScoutAgent.analyzeFunctionPoint(body?.description || "");
+      return sendJson(res, 200, result);
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/safety-checklist") {
+      const target = url.searchParams.get("target") || "";
+      return sendJson(res, 200, srcScoutAgent.generateSafetyChecklist(target));
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/src/company-assets") {
+      const company = url.searchParams.get("company") || "";
+      if (!company) return sendJson(res, 400, { error: "Missing company parameter" });
+      return sendJson(res, 200, srcScoutAgent.analyzeCompanyAssets(company));
+    }
+
+    // ============ End SRC API ============
 
     if (req.method === "GET") {
       const target = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
