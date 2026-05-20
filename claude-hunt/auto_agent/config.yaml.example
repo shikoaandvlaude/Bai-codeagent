@@ -168,3 +168,106 @@ business_logic:
   # 优惠券重复使用测试
   coupon_url: ""              # 兑换接口URL
   # coupon_body 示例: {"code": "PROMO50"}
+
+
+
+# ============================================================
+# 浏览器爬虫配置 (Browser Crawler)
+# 用 Playwright 爬取现代 SPA 应用，发现隐藏 API
+# 需要: pip install playwright && playwright install chromium
+# ============================================================
+browser_crawler:
+  enabled: true
+  headless: true               # true=无头模式, false=显示浏览器窗口(调试用)
+  max_pages: 50                # 最大爬取页面数
+  max_depth: 3                 # 最大爬取深度
+  wait_time: 3000              # 等待JS渲染的时间(毫秒)
+  timeout: 30000               # 页面加载超时(毫秒)
+  screenshot_dir: ""           # 截图保存目录(留空=不截图)
+  proxy: ""                    # 代理(可接入Burp查看流量)
+
+  # 自动登录配置（可选）
+  login_url: ""                # 登录页URL
+  login_username: ""           # 用户名
+  login_password: ""           # 密码
+  login_username_selector: "input[name='username'], input[type='email']"
+  login_password_selector: "input[name='password'], input[type='password']"
+  login_submit_selector: "button[type='submit'], input[type='submit']"
+
+  # Cookie 方式登录（如果已有Cookie，填这里比自动登录更可靠）
+  cookies: []
+  # 示例:
+  # cookies:
+  #   - {name: "session", value: "abc123", domain: "target.com", path: "/"}
+
+# ============================================================
+# 认证管理配置 (Auth Manager)
+# 自动刷新过期的 Session/JWT/OAuth Token
+# ============================================================
+auth_manager:
+  enabled: true
+  type: "cookie"              # cookie / jwt / oauth2 / apikey / custom
+
+  # Cookie/Session 登录
+  login_url: ""               # 登录接口URL
+  login_body: {}              # 登录请求体 (JSON)
+  # 示例: login_body: {"username": "test", "password": "pass123"}
+  session_cookie_name: ""     # Session Cookie 名称
+
+  # JWT 配置
+  jwt_refresh_url: ""         # Token 刷新接口
+  jwt_header_name: "Authorization"
+  jwt_header_prefix: "Bearer "
+
+  # OAuth2 配置
+  oauth2_token_url: ""
+  oauth2_client_id: ""
+  oauth2_client_secret: ""
+
+  # API Key 配置
+  api_key: ""
+  api_key_header: "X-API-Key"
+
+  # 验证登录态
+  check_url: ""               # 用于验证登录是否有效的URL
+  check_keyword: ""           # 响应中应包含的关键词
+  check_interval: 60          # 检查间隔(秒)
+
+# ============================================================
+# 变化监控配置 (Change Monitor)
+# 定期检测目标变化，第一时间发现新攻击面
+# 运行: python -m change_monitor (后台持续运行)
+# ============================================================
+change_monitor:
+  enabled: true
+  targets: []                 # 监控的目标列表
+  # 示例: targets: ["target.com", "api.target.com"]
+  check_interval: 3600        # 检查间隔(秒), 默认1小时
+  db_path: "~/.bai-agent/monitor.db"  # 数据库路径
+
+  # Webhook 通知
+  webhook_url: ""             # Webhook URL
+  webhook_type: "generic"     # generic / feishu / dingtalk / telegram / discord
+  # 飞书示例: webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  # 钉钉示例: webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
+  # Telegram: webhook_url: "https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>"
+  # Discord: webhook_url: "https://discord.com/api/webhooks/xxx/yyy"
+
+# ============================================================
+# 持久化存储配置 (DB Store)
+# ============================================================
+db_store:
+  enabled: true
+  db_path: "~/.bai-agent/hunt.db"  # SQLite 数据库路径
+  log_requests: true               # 是否记录所有HTTP请求
+  cleanup_days: 30                 # 自动清理N天前的请求日志
+
+# ============================================================
+# API 发现配置 (API Discovery)
+# ============================================================
+api_discovery:
+  enabled: true
+  probe_swagger: true         # 探测 Swagger/OpenAPI
+  probe_graphql: true         # 探测 GraphQL
+  probe_common_paths: true    # 探测常见API路径
+  parse_robots: true          # 解析 robots.txt
