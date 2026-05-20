@@ -2155,3 +2155,119 @@ Recon → Params → Hunt(nuclei/dalfox) → DeepHunt(HTTP引擎+差异检测+ID
 3. **JS 分析** — 大量高价值洞藏在 JS 里：硬编码API Key、未公开管理接口、调试端点。
 4. **变化监控** — 新功能=未审计代码=最容易出洞。第一时间知道目标更新了什么。
 5. **真实验证** — 不再产出"AI觉得是洞"的误报，而是"我发了请求确认了"的真洞。
+
+
+
+---
+
+## 2025-06-20 APP/IoT 目标适配模块
+
+### 为什么需要
+
+模拟对补天 SRC 目标 **DREAME HOME（com.dreame.smartlife.com）设备交互接口** 的挖掘流程时，发现工具的致命缺陷：
+
+- `subfinder -d com.dreame.smartlife.com` → 返回空（这是包名不是域名）
+- `gau / waybackurls` → 返回空（Web Archive 没有 APP 后端记录）
+- 整个 Recon 阶段产出为零，后续所有阶段都跑不动
+
+**结论：原工具只认域名，完全不认 APP 包名和 IoT 设备目标。**
+
+### 新增文件
+
+| 文件 | 功能 |
+|------|------|
+| `app_recon.py` | APP/IoT 专用信息搜集（自动识别目标类型→APK分析→包名推导域名→IoT协议探测→云平台识别） |
+| `iot_hunter.py` | IoT 设备专项漏洞测试（设备IDOR/固件未授权/ID枚举/API认证缺失/信息泄露） |
+
+### 目标类型自动识别
+
+输入 `com.dreame.smartlife` 时工具会自动检测：
+
+```
+com.dreame.smartlife → 识别为 APP 包名
+  → 自动切换到 APP Recon 路径（不走 subfinder/gau）
+  → 从包名推导域名: api.dreame.com, iot.dreame.com, mqtt.dreame.com...
+  → 探测 IoT 协议端口 (MQTT 1883/8883, CoAP 5683)
+  → 识别云平台 (涂鸦/阿里云IoT/AWS IoT)
+```
+
+### APP Recon 流程
+
+```
+输入 APP 包名
+  │
+  ├── 有 APK 文件？
+  │     ├── 有 jadx → 反编译提取所有 URL/API/密钥
+  │     ├── 有 apktool → 解码 smali 提取字符串
+  │     └── 都没有 → strings + unzip 降级提取
+  │
+  ├── 有 HAR 抓包文件？→ 解析所有 API 请求
+  │
+  ├── 什么都没有？→ 包名推导域名（16个候选）
+  │
+  ├── IoT 端口探测 → MQTT/CoAP/自定义端口
+  │
+  └── 云服务识别 → AWS IoT/阿里云/涂鸦/小米
+```
+
+### IoT 设备专项测试
+
+| 测试项 | 说明 | 严重程度 |
+|--------|------|---------|
+| 设备 IDOR | 用 A 的 token 访问 B 的设备 | 高危/严重 |
+| 固件未授权 | OTA 接口无需认证即可下载固件 | 高危 |
+| 设备 ID 枚举 | MAC/数字/十六进制 ID 可预测遍历 | 高危 |
+| API 未认证 | 设备接口不需要 token 即可访问 | 严重 |
+| 信息泄露 | 返回 WiFi 密码/GPS/Token 等敏感字段 | 中高危 |
+
+### 使用方式
+
+```yaml
+# config.yaml
+app:
+  apk_path: "/path/to/dreame_home.apk"   # 下载APK
+  har_path: "/path/to/capture.har"        # mitmproxy抓包
+
+iot:
+  token_a: "Bearer eyJ..."
+  token_b: "Bearer eyJ..."
+  device_id_a: "你的设备DID"
+  device_id_b: "另一个设备DID"
+  base_url: "https://api.dreame.com"
+```
+
+```bash
+# 运行（自动识别为APP目标）
+python auto_hunt.py --target com.dreame.smartlife --mode semi
+```
+
+### 对追觅智能家居的测试建议
+
+1. **先抓包** — 手机装 mitmproxy 证书，正常使用 APP 操作扫地机，导出 HAR
+2. **找到真实 API 域名** — 从抓包中确认 base_url
+3. **注册两个账号** — 获取双 token + 双设备 ID
+4. **重点测试方向**：
+   - 设备控制接口是否校验设备归属（IDOR）
+   - 设备地图/清扫记录是否可被他人查看
+   - 固件更新接口是否需要认证
+   - 设备分享功能的权限边界
+
+### 语法验证通过
+
+```
+=== 目标类型识别测试 ===
+  PASS com.dreame.smartlife -> app
+  PASS com.dreame.smartlife.com -> app
+  PASS api.dreame.com -> domain
+  PASS 192.168.1.1 -> ip
+
+=== AppRecon 初始化测试 ===
+  PASS Inferred 16 candidate domains:
+    - api.dreame.com
+    - app-api.dreame.com
+    - iot.dreame.com
+    - iot-api.dreame.com
+    - mqtt.dreame.com
+
+=== ALL SYNTAX CHECKS PASSED ===
+```
