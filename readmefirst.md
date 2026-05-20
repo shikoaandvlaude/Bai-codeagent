@@ -1925,3 +1925,233 @@ claude-hunt/auto_agent/
 | 文件 | 功能 | 说明 |
 |------|------|------|
 | `frontend/index.html` | RedOps Web 聊天界面 | 暗色主题，侧边栏导航（仪表盘/目标/扫描/配置/技能/系统），实时对话+命令执行展示 |
+
+
+---
+
+## 2025-06-20 重大更新：深度挖掘引擎 + 浏览器爬虫 + 全链路补强
+
+### 更新背景
+
+原工具本质上是一个"工具编排器"——调用 nuclei/dalfox/subfinder 等外部工具，AI 层只做决策和报告。真正的"挖洞能力"（HTTP 请求构造、响应差异检测、payload 变异、业务逻辑验证）几乎为零。本次更新补全了所有关键缺失。
+
+### 新增模块总览（共 13 个文件，约 7300 行代码）
+
+#### 第一批：深度挖掘引擎（替代纯工具编排）
+
+| 文件 | 功能 | 解决什么问题 |
+|------|------|-------------|
+| `auto_agent/http_engine.py` | 异步 HTTP 请求引擎 | 原来只能 subprocess curl，无法做精细化多步请求 |
+| `auto_agent/payload_generator.py` | 上下文感知 Payload 生成器 | 原来没有自定义 payload，只靠外部工具模板 |
+| `auto_agent/active_fuzzer.py` | 基于响应差异的主动 Fuzz | 原来参数发现全靠被动（gau/waybackurls） |
+| `auto_agent/idor_tester.py` | 系统性 IDOR 越权测试 | 原来只做简单 cookie 互换，没有 ID 枚举/方法变换 |
+| `auto_agent/business_logic_tester.py` | 业务逻辑漏洞测试 | 原来完全没有（金额篡改/竞态/流程跳跃/权限提升） |
+| `auto_agent/real_validator.py` | 真正发请求验证漏洞 | 原来是问 LLM "你觉得这是真洞吗"——AI 自问自答 |
+| `auto_agent/waf_bypass.py` | WAF 绕过（编码/变异/HPP） | 原来只检测 WAF 然后降速，不做任何绕过 |
+| `auto_agent/phases/deep_hunt.py` | 深度挖掘集成阶段 | 串联以上所有新模块，插入到 pipeline 中 |
+
+#### 第二批：攻击面发现 + 持续监控 + 认证管理
+
+| 文件 | 功能 | 解决什么问题 |
+|------|------|-------------|
+| `auto_agent/browser_crawler.py` | Playwright 浏览器爬虫 | 现代 SPA 应用用 curl 只看到空 HTML，看不到 API |
+| `auto_agent/js_analyzer.py` | JS 文件安全分析 | 漏掉 JS bundle 中的硬编码 key/隐藏 API/XSS sink |
+| `auto_agent/auth_manager.py` | Token/Session 自动刷新 | Session 过期整个流程就中断了 |
+| `auto_agent/change_monitor.py` | 变化检测 + Webhook 通知 | 新功能上线时不知道，错过最佳挖洞窗口 |
+| `auto_agent/db_store.py` | SQLite 持久化存储 | 每次跑完数据丢失，无法增量扫描和历史对比 |
+| `auto_agent/api_discovery.py` | API Schema 自动发现 | Swagger/GraphQL/隐藏端点没被发现 |
+
+### 核心能力提升对比
+
+| 能力 | 改之前 | 改之后 |
+|------|--------|--------|
+| HTTP 请求 | subprocess curl（无状态） | 异步 httpx 引擎（支持 session/cookie/并发/重试） |
+| 注入点发现 | 靠 dalfox/nuclei 模板 | **响应差异检测**（状态码/长度/时间/反射上下文分析） |
+| IDOR 测试 | 一次 cookie 互换 | ID 枚举 + 方法变换(GET/PUT/DELETE) + API 版本降级 + GraphQL node() + 参数污染 |
+| 漏洞验证 | 问 LLM 7 个问题 | **发真实 HTTP 请求验证**（布尔盲注/时间延迟/反射检查） |
+| 业务逻辑 | 5 个并发 curl | 金额篡改 + 竞态(带状态前后对比) + 流程跳跃 + 权限提升 |
+| WAF 处理 | 检测后降速 | 编码变异/注释插入/大小写混淆/HPP/Unicode/分块传输 |
+| 攻击面发现 | subfinder + gau（被动） | **Playwright 爬 SPA** + JS 分析 + API schema 探测 |
+| 认证管理 | 静态 cookie，过期就停 | 自动检测过期 + 重新登录/JWT刷新/OAuth2 refresh |
+| 数据持久化 | 内存/日志文件 | SQLite 数据库（跨次运行/历史对比/增量扫描） |
+| 监控通知 | 无 | 子域名/页面/JS 变化检测 + 飞书/钉钉/Telegram 通知 |
+
+### 安装新依赖
+
+```bash
+cd claude-hunt/auto_agent
+pip install -r requirements.txt
+playwright install chromium
+```
+
+新增的 Python 依赖：
+- `httpx>=0.25.0` — 异步 HTTP 引擎
+- `playwright>=1.40.0` — 浏览器爬虫（安装后还需 `playwright install chromium`）
+
+### 使用方式
+
+#### 正常运行（新模块自动集成到 pipeline）
+
+```bash
+python auto_hunt.py --target example.com --mode semi
+# DeepHuntPhase 会在 HuntPhase 之后自动运行
+```
+
+#### 单独使用浏览器爬虫
+
+```python
+import asyncio
+from browser_crawler import BrowserCrawler
+
+crawler = BrowserCrawler({
+    "target": "https://target.com",
+    "cookies": [{"name": "session", "value": "xxx", "domain": "target.com"}],
+    "max_pages": 30,
+    "headless": True,
+})
+result = asyncio.run(crawler.crawl())
+print(f"发现 {len(result.api_endpoints)} 个 API 端点")
+print(f"发现 {len(result.js_files)} 个 JS 文件")
+```
+
+#### 单独使用 JS 分析
+
+```python
+from js_analyzer import JSAnalyzer
+
+analyzer = JSAnalyzer()
+with open("app.bundle.js") as f:
+    result = analyzer.analyze(f.read(), source_url="https://target.com/app.js")
+
+print(f"端点: {len(result.endpoints)}")
+print(f"密钥: {len(result.secrets)}")
+print(f"XSS Sink: {len(result.sinks)}")
+
+# 查看高危发现
+for finding in result.all_findings:
+    if finding.severity in ("critical", "high"):
+        print(f"  [{finding.severity}] {finding.category}: {finding.value}")
+```
+
+#### 单独使用变化监控
+
+```python
+import asyncio
+from change_monitor import ChangeMonitor
+
+monitor = ChangeMonitor({
+    "targets": ["target.com", "api.target.com"],
+    "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/你的token",
+    "webhook_type": "feishu",
+    "check_interval": 1800,  # 每30分钟
+})
+
+# 单次检查
+changes = asyncio.run(monitor.check_all())
+
+# 持续运行
+asyncio.run(monitor.run_forever())
+```
+
+#### 单独使用响应差异检测（挖注入点的核心）
+
+```python
+import asyncio
+from http_engine import HttpEngine
+
+async def find_injection():
+    engine = HttpEngine({"rate_limit": 3, "cookies": {"session": "xxx"}})
+    
+    # 对每个参数发送 payload，检测响应差异
+    results = await engine.diff_responses(
+        url="https://target.com/api/search",
+        param="q",
+        payloads=["'", "\"", "{{7*7}}", "<script>", "' OR '1'='1"],
+    )
+    
+    for r in results:
+        if r.anomaly_score >= 30:
+            print(f"异常! payload='{r.payload}' score={r.anomaly_score}")
+            if r.reflected:
+                print(f"  反射上下文: {r.reflection_context}")
+            if r.time_diff > 2:
+                print(f"  时间延迟: {r.time_diff:.2f}s (可能是盲注)")
+    
+    await engine.close()
+
+asyncio.run(find_injection())
+```
+
+### 新增配置项（config.yaml）
+
+```yaml
+# 深度挖掘
+deep_hunt:
+  enabled: true
+  proxy: "http://127.0.0.1:8080"  # 接 Burp 看流量
+  enable_fuzz: true
+  enable_idor: true
+  enable_bizlogic: true
+  enable_auth_bypass: true
+  anomaly_threshold: 30           # 响应差异检测阈值
+
+# 浏览器爬虫
+browser_crawler:
+  enabled: true
+  headless: true
+  max_pages: 50
+  login_url: "https://target.com/login"
+  login_username: "test@test.com"
+  login_password: "password123"
+
+# 认证管理
+auth_manager:
+  type: "jwt"                     # cookie/jwt/oauth2/apikey
+  jwt_refresh_url: "https://target.com/api/auth/refresh"
+  check_url: "https://target.com/api/me"
+
+# 变化监控
+change_monitor:
+  targets: ["target.com"]
+  webhook_url: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  webhook_type: "feishu"          # feishu/dingtalk/telegram/discord
+  check_interval: 3600
+
+# 持久化
+db_store:
+  enabled: true
+  db_path: "~/.bai-agent/hunt.db"
+
+# API 发现
+api_discovery:
+  probe_swagger: true
+  probe_graphql: true
+  probe_common_paths: true
+```
+
+### 架构变化
+
+原流程：
+```
+Recon → Params → Hunt(nuclei/dalfox) → Validate(问AI) → Verify(问AI) → Report
+```
+
+新流程：
+```
+Recon → Params → Hunt(nuclei/dalfox) → DeepHunt(HTTP引擎+差异检测+IDOR+业务逻辑+WAF绕过+真实验证) → Validate → Verify → Report
+```
+
+`DeepHuntPhase` 在原有的 `HuntPhase`（工具编排）之后运行，用自研引擎做精细化测试：
+1. 对每个带参数的 URL 做响应差异 Fuzz
+2. 系统性 IDOR 越权（多维度）
+3. 业务逻辑测试（竞态/金额/流程）
+4. 认证绕过（403 header/路径变异）
+5. 所有发现用真实 HTTP 请求验证（不再问 AI）
+
+### 为什么这些改动能帮你挖到洞
+
+1. **响应差异检测** — 这是手工挖洞高手的核心技术。看到长度变了/状态码变了/延迟增加了，就知道有注入点。
+2. **浏览器爬虫** — 90%的SRC目标是SPA，curl只看到空HTML。有了Playwright才能看到真正的API。
+3. **JS 分析** — 大量高价值洞藏在 JS 里：硬编码API Key、未公开管理接口、调试端点。
+4. **变化监控** — 新功能=未审计代码=最容易出洞。第一时间知道目标更新了什么。
+5. **真实验证** — 不再产出"AI觉得是洞"的误报，而是"我发了请求确认了"的真洞。
