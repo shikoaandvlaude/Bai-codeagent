@@ -271,3 +271,31 @@ api_discovery:
   probe_graphql: true         # 探测 GraphQL
   probe_common_paths: true    # 探测常见API路径
   parse_robots: true          # 解析 robots.txt
+
+
+# ============================================================
+# APP/IoT 目标专用配置
+# 当目标是 APP 包名时（如 com.dreame.smartlife），自动启用
+# ============================================================
+app:
+  # APK 文件路径（可选，有则自动反编译提取API）
+  apk_path: ""                # 例: "/path/to/dreame.apk"
+  # 抓包文件（Charles/mitmproxy/Fiddler 导出的 HAR 文件）
+  har_path: ""                # 例: "/path/to/capture.har"
+  # 设备信息（IoT 测试用）
+  device_id_a: ""             # 你的设备ID（从APP抓包获取）
+  device_id_b: ""             # 第二个测试设备ID
+
+# IoT 设备专项测试
+iot:
+  enabled: true               # 启用IoT专项测试
+  # 双账号 Token（APP登录后的Bearer Token）
+  token_a: ""                 # 账号A的 Bearer Token
+  token_b: ""                 # 账号B的 Bearer Token
+  # API 基础地址（从抓包/APK分析获得）
+  base_url: ""                # 例: "https://api.dreame.com"
+  # 测试项开关
+  test_device_idor: true      # 设备越权访问
+  test_firmware: true         # 固件未授权下载
+  test_id_enum: true          # 设备ID枚举
+  test_mqtt: true             # MQTT消息越权（需要paho-mqtt）

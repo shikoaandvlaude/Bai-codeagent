@@ -36,6 +36,9 @@ from phases.validate import ValidatePhase
 from phases.verify import VerifyPhase
 from phases.report import ReportPhase
 
+# APP/IoT 目标适配
+from app_recon import detect_target_type, AppRecon
+
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -202,6 +205,70 @@ def run_agent(target, mode, config):
                 console.print(f"  [green]发现 {len(asset_result['domains'])} 个关联域名[/green]")
     elif mode == "auto":
         asset_result = asset_disc.discover(target, company_name)
+    
+    # ═══ APP/IoT 目标检测 ═══
+    target_type = detect_target_type(target)
+    if target_type == "app":
+        console.print(f"\n[bold yellow]⚡ 检测到 APP 类目标: {target}[/bold yellow]")
+        console.print("[yellow]  自动切换到 APP Recon 模式（APK分析+包名推导域名）[/yellow]")
+        
+        # APP 专用 Recon
+        app_recon = AppRecon({
+            "package_name": target,
+            "apk_path": config.get('app', {}).get('apk_path', ''),
+            "har_path": config.get('app', {}).get('har_path', ''),
+        })
+        
+        import asyncio as _asyncio
+        try:
+            loop = _asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    app_result = pool.submit(_asyncio.run, app_recon.run()).result()
+            else:
+                app_result = loop.run_until_complete(app_recon.run())
+        except RuntimeError:
+            app_result = _asyncio.run(app_recon.run())
+        
+        # 将 APP Recon 结果注入到 findings 中
+        if app_result.api_domains:
+            console.print(f"  [green]发现 {len(app_result.api_domains)} 个 API 域名[/green]")
+            for d in app_result.api_domains[:10]:
+                console.print(f"    • {d}")
+            findings["subdomains"].extend(app_result.api_domains)
+        
+        if app_result.api_endpoints:
+            console.print(f"  [green]发现 {len(app_result.api_endpoints)} 个 API 端点[/green]")
+            for ep in app_result.api_endpoints[:5]:
+                ep_str = ep if isinstance(ep, str) else ep.get("url", str(ep))
+                console.print(f"    • {ep_str[:80]}")
+            findings["urls"].extend(
+                [e if isinstance(e, str) else e.get("url", "") for e in app_result.api_endpoints]
+            )
+        
+        if app_result.hardcoded_secrets:
+            console.print(f"  [red]发现 {len(app_result.hardcoded_secrets)} 个硬编码密钥![/red]")
+            findings["secrets"].extend(
+                [s.get("value", "") for s in app_result.hardcoded_secrets]
+            )
+        
+        if app_result.mqtt_brokers:
+            console.print(f"  [cyan]发现 MQTT Broker: {app_result.mqtt_brokers}[/cyan]")
+        
+        if app_result.cloud_services:
+            console.print(f"  [cyan]云服务: {', '.join(app_result.cloud_services)}[/cyan]")
+        
+        # 更新 target 为发现的主 API 域名（后续阶段用）
+        if app_result.api_domains:
+            primary_domain = app_result.api_domains[0]
+            console.print(f"\n  [bold]主 API 域名: {primary_domain}[/bold]")
+            # 不替换原 target，但把域名加到 alive_hosts 供后续使用
+            findings["alive_hosts"].append(f"https://{primary_domain}")
+        
+        logger.log_event("APP_RECON", f"APP目标识别完成: {len(app_result.api_domains)} 域名, "
+                        f"{len(app_result.api_endpoints)} 端点, "
+                        f"{len(app_result.hardcoded_secrets)} 密钥")
     
     # ═══ 主流程阶段 ═══
     phases = [
