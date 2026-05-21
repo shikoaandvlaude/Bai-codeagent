@@ -2271,3 +2271,199 @@ python auto_hunt.py --target com.dreame.smartlife --mode semi
 
 === ALL SYNTAX CHECKS PASSED ===
 ```
+
+
+
+---
+
+## 2025.05 新增：第三轮能力补全（3 个差异化模块）
+
+在前两轮整合（Shannon + 5大框架）的基础上，针对 GitHub 上所有同类工具的对比分析，补全了 3 个当前仍缺失的差异化能力。原有代码零修改。
+
+### 新增模块
+
+| 模块 | 文件 | 能力 |
+|------|------|------|
+| **Metasploit 集成** | `claude-hunt/auto_agent/metasploit_bridge.py` | 通过 RPC/CLI 双模式自动调用 Metasploit exploit + 后渗透 |
+| **CVE 情报关联** | `claude-hunt/auto_agent/cve_intelligence.py` | 扫描结果自动匹配 NVD/ExploitDB，补充 CVSS + 已知 exploit |
+| **SRC 平台报告** | `claude-hunt/auto_agent/src_submitter.py` | 补天/漏洞盒子/HackerOne 三平台标准格式报告一键生成 |
+
+---
+
+### Metasploit Bridge (`metasploit_bridge.py`)
+
+**解决的问题：** 发现漏洞后需要手动打开 msfconsole 配置 exploit，现在可以自动化。
+
+**双模式运行：**
+- **RPC 模式**：通过 msfrpcd 完全控制（推荐）
+- **CLI 模式**：降级方案，通过 `msfconsole -x` 执行（无需 RPC 服务）
+
+```python
+from metasploit_bridge import MetasploitBridge
+
+msf = MetasploitBridge(password="yourpassword")
+await msf.connect()
+
+# 搜索 exploit（本地知识库 + RPC 搜索）
+modules = await msf.search_exploit("log4j", cve="CVE-2021-44228")
+
+# 一键自动利用
+result = await msf.auto_exploit(
+    target="192.168.1.100",
+    port=8080,
+    cve="CVE-2021-44228",
+    platform="linux",
+)
+
+if result.success:
+    # 后渗透
+    post_results = await msf.post_exploit(
+        result.session,
+        actions=["sysinfo", "hashdump", "suggest_exploits"]
+    )
+
+# 从 findings 批量利用
+results = await msf.exploit_from_findings(findings["vulnerabilities"])
+```
+
+**内置知识库（20+ 常见漏洞 → 模块映射）：**
+- Log4Shell / Spring4Shell / Struts S2-045
+- EternalBlue / WebLogic / Jenkins / Confluence
+- ThinkPHP / Shiro / Redis / Tomcat GhostCat
+- ...
+
+**前置条件：**
+```bash
+# 启动 Metasploit RPC（Kali 上）
+msfrpcd -P yourpassword -S -a 127.0.0.1
+
+# 或者不启动 RPC，自动降级为 CLI 模式（需要 msfconsole 在 PATH 中）
+```
+
+---
+
+### CVE Intelligence (`cve_intelligence.py`)
+
+**解决的问题：** 发现目标跑的是 Apache 2.4.49，但不知道有什么已知 CVE 可以直接用。
+
+**三层查询（快→慢）：**
+1. 本地高频知识库（20+ 国内SRC常见CVE，秒级响应）
+2. 文件缓存（7天有效）
+3. NVD API 在线查询
+
+```python
+from cve_intelligence import CVEIntelligence, enrich_with_cve
+
+intel = CVEIntelligence()
+
+# 查询单个 CVE
+info = await intel.lookup_cve("CVE-2021-44228")
+print(f"{info.cve_id}: CVSS {info.cvss_score}, Exploit: {info.exploit_available}")
+print(f"Nuclei: {info.nuclei_template}, MSF: {info.metasploit_module}")
+
+# 根据技术栈批量匹配
+cves = await intel.match_tech_stack(["apache 2.4.49", "spring-boot 2.5.0", "fastjson 1.2.68"])
+for cve in cves:
+    print(f"  {cve.cve_id} ({cve.severity}): {cve.description}")
+
+# 自动为 findings 补充情报（最实用！）
+enriched_findings = await enrich_with_cve(findings["vulnerabilities"])
+# 每个 finding 自动补充: cve, cvss_score, exploit_links, nuclei_template, metasploit_module
+
+# 搜索 exploit
+exploits = await intel.search_exploits("apache struts rce")
+```
+
+**本地知识库覆盖（离线可用）：**
+
+| CVE | 漏洞 | CVSS |
+|-----|------|------|
+| CVE-2021-44228 | Log4Shell | 10.0 |
+| CVE-2022-22965 | Spring4Shell | 9.8 |
+| CVE-2017-5638 | Struts S2-045 | 10.0 |
+| CVE-2021-41773 | Apache 路径遍历 | 9.8 |
+| CVE-2022-26134 | Confluence OGNL 注入 | 9.8 |
+| CVE-2020-14882 | WebLogic 未授权 RCE | 9.8 |
+| CVE-2018-20062 | ThinkPHP RCE | 9.8 |
+| CVE-2016-4437 | Shiro 默认密钥 | 8.1 |
+| CVE-2022-25845 | Fastjson 反序列化 | 9.8 |
+| CVE-2021-29441 | Nacos 未授权 | 8.8 |
+| ... | 共 20+ 高频 CVE | |
+
+**技术栈 → CVE 自动映射（覆盖 20+ 技术）：**
+apache / nginx / tomcat / spring / struts / log4j / shiro / fastjson / thinkphp / weblogic / confluence / gitlab / jenkins / redis / elasticsearch / nacos / wordpress / drupal / exchange / docker / kubernetes
+
+---
+
+### SRC Submitter (`src_submitter.py`)
+
+**解决的问题：** 挖到洞后还要花 30 分钟写报告格式化，现在一键生成可直接提交的标准格式。
+
+**支持三大平台：**
+- 补天 SRC（默认）
+- 漏洞盒子
+- HackerOne（英文）
+- 企业 SRC 通用格式
+
+```python
+from src_submitter import SRCSubmitter, generate_src_report, batch_src_reports
+
+# 单个漏洞 → 报告（直接复制粘贴到平台）
+report_text = generate_src_report(finding, platform="butian", company="某某科技")
+print(report_text)
+
+# 批量生成并保存
+paths = batch_src_reports(
+    findings=verified_findings,
+    platform="vulbox",
+    output_dir="./src_reports",
+    company="目标公司名"
+)
+# 生成: ./src_reports/01_SQL注入_xxx_vulbox.md, 02_越权_xxx_vulbox.md, ...
+```
+
+**自动生成的内容包括：**
+- 漏洞标题（自动格式化）
+- 漏洞分类（自动映射到平台分类）
+- 严重等级
+- 漏洞描述（根据类型自动生成）
+- 复现步骤（从 finding 的 payload/steps 自动组装）
+- HTTP 请求包（格式化展示）
+- 影响说明（按类型生成业务影响描述）
+- 修复建议（内置 11 类漏洞的修复方案）
+
+**内置修复建议覆盖：**
+SQL注入 / XSS / SSRF / IDOR越权 / RCE / 文件上传 / 信息泄露 / 竞态条件 / 业务逻辑 / 认证缺陷 / 未授权访问
+
+**提交前查重：**
+```python
+submitter = SRCSubmitter(platform="butian")
+is_dup = submitter.check_duplicate(new_finding, history=previous_submissions)
+if not is_dup:
+    report = submitter.generate_report(new_finding)
+```
+
+---
+
+### 完整工作流示例
+
+```python
+# 1. 扫描发现漏洞
+findings = auto_hunt_result["vulnerabilities"]
+
+# 2. CVE 情报补充
+from cve_intelligence import enrich_with_cve
+findings = await enrich_with_cve(findings)
+
+# 3. 有 CVE 的尝试 Metasploit 自动利用
+from metasploit_bridge import MetasploitBridge
+msf = MetasploitBridge(password="msf")
+await msf.connect()
+exploit_results = await msf.exploit_from_findings(findings)
+
+# 4. 生成 SRC 报告
+from src_submitter import batch_src_reports
+report_paths = batch_src_reports(findings, platform="butian", company="目标公司")
+
+# 完成：扫描 → 情报 → 利用 → 报告，全自动
+```
