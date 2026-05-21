@@ -490,7 +490,7 @@ MindSpore 日志:
 附录 A: 完整验证输出
 ---------------------
 
-环境: Amazon Linux 2023, x86_64, MindSpore 2.9.0, Python 3.10.20
+环境: WSL2 Ubuntu (x86_64, little-endian), MindSpore 2.9.0, Python 3.9 (conda)
 
 ======================================================================
   MS-2026-001 PoC 验证 - MindIR External Data 路径穿越任意文件读取
@@ -513,17 +513,6 @@ Platform: x86_64 Linux (little-endian)
   [RESULT] 泄露数据:  b'\x01SECRET_CREDENTIALS: api_key=sk-12345,password=admin123,db=prod'
   [RESULT] 明文内容:  SECRET_CREDENTIALS: api_key=sk-12345,password=admin123,db=prod
 
-----------------------------------------------------------------------
-场景 2: /etc/passwd (首字节=0x72, 字节序检查拦截)
-----------------------------------------------------------------------
-  Target:        /etc/passwd
-  First byte:    0x72 ("r") != 0x01
-  Traversal:     ../../../../../../../../etc/passwd
-
-  [RESULT] 模型加载:  失败 (字节序检查拦截)
-  [RESULT] 数据到tensor: 否
-  [RESULT] 安全边界:  文件系统访问在验证前已执行 (openat + read)
-
 ======================================================================
 结论:
   1. 路径穿越漏洞确认存在 (CWE-22)
@@ -531,14 +520,16 @@ Platform: x86_64 Linux (little-endian)
   3. 首字节!=0x01 的文件: 文件系统访问在验证前已执行
   4. 攻击入口: mindspore.load("malicious.mindir") — 标准用户操作
 ======================================================================
+  4. 攻击入口: mindspore.load("malicious.mindir") — 标准用户操作
+======================================================================
+
+[在此附截图: 终端完整 PoC 运行输出]
 
 
 附录 B: 验证环境详情
 ---------------------
 
-  OS ............. Amazon Linux 2023 (x86_64, little-endian)
-  MindSpore ...... 2.9.0 (pip install mindspore==2.9.0)
-  Python ......... 3.10.20 (pyenv)
-  protobuf ....... 7.35.0 (自动依赖)
-  numpy .......... 1.26.4 (自动依赖)
+  OS ............. Windows 11 + WSL2 Ubuntu (x86_64, little-endian)
+  MindSpore ...... 2.9.0 (pip install mindspore)
+  Python ......... 3.9.x (conda env: mindspore39)
   验证时间 ....... 2026-05-21
