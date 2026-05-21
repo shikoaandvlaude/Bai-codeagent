@@ -286,8 +286,7 @@ MindSpore 日志:
   目标场景                          | 首字节条件  | 结果
   ----------------------------------|-------------|----------------------------
   攻击者构造的敏感数据文件          | 0x01        | 完整数据外泄 (已验证)
-  多租户平台中其他用户的模型权重    | 取决于格式  | protobuf/pickle 可能满足
-  Protobuf 序列化文件 (field=1)     | 0x08-0x0A   | 不满足
+  特定二进制格式文件                | 取决于内容  | 部分可能满足
   /etc/passwd, /etc/shadow          | 0x72 ('r')  | 字节序检查拦截
 
 虽然常见系统敏感文件首字节不满足 0x01, 但这不影响漏洞的安全评估:
@@ -461,21 +460,7 @@ MindSpore 日志:
 9. 补充说明
 -----------
 
-9.1 关于 tenor_data_ 缓存机制
-
-源码中检查通过后, 文件数据会缓存到 MSANFModelParser 的 tenor_data_ 成员:
-
-  (void)tenor_data_.emplace(location, std::unique_ptr<Byte[]>(...));
-
-如果同一模型内多个 tensor 引用同一 location:
-  - 第一次: 完整文件打开/读取/检查流程
-  - 后续: 直接从缓存读取, 跳过所有检查
-
-攻击者可利用此机制: 让多个 tensor 引用同一穿越路径, 首次通过检查后
-后续引用无需再满足首字节条件。
-
-
-9.2 源码版本与定位说明
+9.1 源码版本与定位说明
 
 本分析基于:
   - PyPI 包: mindspore==2.9.0
@@ -487,17 +472,19 @@ MindSpore 日志:
 进行定位, 而非依赖绝对行号。
 
 
-9.3 原报告 PoC 的改进点
+9.2 原报告 PoC 的增强
 
-原报告 poc_001.py 存在一个问题: 生成的模型缺少 output 节点, 导致
-mindspore.load() 因图结构不完整而失败 (ImportNodesForGraph 报错)。
+本补充对原报告 poc_001.py 进行了增强: 添加 output 节点使模型图结构完整,
+从而使 mindspore.load() 可正常返回 FuncGraph, 实现端到端利用验证。
 
-本补充的 PoC 通过添加以下代码修复:
+原报告使用 strace 捕获 openat 系统调用, 验证路径穿越确实发生 (即使 load
+因图结构不完整而抛异常, openat 已执行)。本补充进一步证明: 构造完整的图
+结构后, 文件内容可直接通过 Python 层导出。
+
+增强代码:
 
   output = graph.output.add()
   output.name = 'Default/param0:param0'  # 匹配 parameter name
-
-修复后模型可被正常加载, 实现端到端利用。
 
 
 附录 A: 完整验证输出
