@@ -1,0 +1,204 @@
+# ============================================================
+# Bai Auto-Hunt Agent 配置文件
+# 使用前请填入你的 API Key 和目标信息
+# 也可通过环境变量覆盖: DEEPSEEK_API_KEY / OPENAI_API_KEY
+# ============================================================
+
+# LLM 配置（支持 DeepSeek / OpenAI 兼容接口）
+llm:
+  provider: "deepseek"
+  api_key: ""                 # 填入你的 Key，或设置环境变量 DEEPSEEK_API_KEY
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+  max_tokens: 4096
+  temperature: 0.3
+
+# HexStrike AI 后端（可选，没有也能跑）
+hexstrike:
+  enabled: false
+  server_url: "http://127.0.0.1:8888"
+  timeout: 120
+  fallback_to_local: true
+
+# 安全限速
+rate_limit:
+  requests_per_second: 3
+  max_concurrent: 2
+  delay_between_phases: 5
+  max_total_requests: 500
+
+# 红线规则
+redline:
+  check_interval: 10
+  max_404_ratio: 0.8
+  max_403_consecutive: 5
+  forbidden_keywords:
+    - "访问被拒绝"
+    - "IP已被封禁"
+    - "请完成人机验证"
+    - "滑块验证"
+  forbidden_paths:
+    - "/admin/delete"
+    - "/api/user/all"
+    - "/database/export"
+
+# 日志
+log:
+  desktop: true
+  filename_prefix: "doing"
+  verbose: true
+
+# Agent 行为
+agent:
+  auto_mode_confirm_critical: true
+  max_phase_time: 600
+  trace_analysis_interval: 5
+
+# Session 监控
+session_monitor:
+  check_url: ""
+  cookie: ""
+  expected_keyword: ""
+  check_interval: 10
+
+# IDOR 多账号对比（填入双账号 Cookie 启用越权测试）
+idor:
+  cookie_a: ""
+  cookie_b: ""
+
+# 目标配置
+target:
+  domain: ""
+  company_name: ""
+  scope:
+    - "*.example.com"
+  out_of_scope:
+    - "*.gov.cn"
+    - "*.edu.cn"
+
+# 断点续跑
+checkpoint:
+  enabled: true
+  directory: "~/.bai-agent/checkpoints"
+  auto_resume: true
+
+# Scope 管理
+scope_updater:
+  enabled: true
+  max_age_hours: 24
+  data_dir: "~/.bai-agent/scope"
+  platforms:
+    - "butian"
+    - "vulbox"
+
+# 误报过滤
+false_positive_filter:
+  enabled: true
+  auto_threshold: 30
+  patterns:
+    - "idor"
+    - "cors"
+    - "race_condition"
+    - "xss"
+    - "generic"
+
+# 深度挖掘模块（自研 HTTP 引擎）
+deep_hunt:
+  enabled: true
+  proxy: ""
+  timeout: 15
+  enable_fuzz: true
+  anomaly_threshold: 30
+  confirm_threshold: 60
+  max_params_per_url: 10
+  enable_idor: true
+  enable_bizlogic: true
+  enable_auth_bypass: true
+  reproduction_attempts: 3
+  enable_waf_bypass: true
+  waf_type: ""
+
+# 业务逻辑测试
+business_logic:
+  state_url: ""
+  state_field: ""
+  order_url: ""
+  coupon_url: ""
+
+# 浏览器爬虫
+browser_crawler:
+  enabled: true
+  headless: true
+  max_pages: 50
+  max_depth: 3
+  wait_time: 3000
+  timeout: 30000
+  screenshot_dir: ""
+  proxy: ""
+  login_url: ""
+  login_username: ""
+  login_password: ""
+  login_username_selector: "input[name='username'], input[type='email']"
+  login_password_selector: "input[name='password'], input[type='password']"
+  login_submit_selector: "button[type='submit'], input[type='submit']"
+  cookies: []
+
+# 认证管理
+auth_manager:
+  enabled: true
+  type: "cookie"
+  login_url: ""
+  login_body: {}
+  session_cookie_name: ""
+  jwt_refresh_url: ""
+  jwt_header_name: "Authorization"
+  jwt_header_prefix: "Bearer "
+  oauth2_token_url: ""
+  oauth2_client_id: ""
+  oauth2_client_secret: ""
+  api_key: ""
+  api_key_header: "X-API-Key"
+  check_url: ""
+  check_keyword: ""
+  check_interval: 60
+
+# 变化监控
+change_monitor:
+  enabled: true
+  targets: []
+  check_interval: 3600
+  db_path: "~/.bai-agent/monitor.db"
+  webhook_url: ""
+  webhook_type: "generic"
+
+# 持久化存储
+db_store:
+  enabled: true
+  db_path: "~/.bai-agent/hunt.db"
+  log_requests: true
+  cleanup_days: 30
+
+# API 发现
+api_discovery:
+  enabled: true
+  probe_swagger: true
+  probe_graphql: true
+  probe_common_paths: true
+  parse_robots: true
+
+# APP/IoT 目标
+app:
+  apk_path: ""
+  har_path: ""
+  device_id_a: ""
+  device_id_b: ""
+
+iot:
+  enabled: true
+  token_a: ""
+  token_b: ""
+  base_url: ""
+  test_device_idor: true
+  test_firmware: true
+  test_id_enum: true
+  test_mqtt: true
