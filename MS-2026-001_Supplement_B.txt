@@ -213,7 +213,8 @@ huge_memcpy 完整拷入 tensor, 并可通过 Python 层导出。
   字节序检查绕过    [确认] 首字节=0x01, (true)^true=false, 检查通过
   数据进入 tensor   [确认] huge_memcpy 执行, tensor shape=(63,)
   Python 层可导出   [确认] param.asnumpy().tobytes() 返回完整文件内容
-  端到端数据外泄    [确认] 攻击者可通过模型参数获取任意文件的明文内容
+  端到端数据外泄    [确认] 攻击者可通过模型参数获取指定路径文件的明文内容
+                          (满足解析条件时)
 
 
 4. 对比验证: 首字节 ≠ 0x01 的文件
