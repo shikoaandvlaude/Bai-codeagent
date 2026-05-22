@@ -1088,3 +1088,540 @@ python3 claude-hunt/tools/cve_hunter.py --repo URL --full
 ---
 
 *最后更新：2025-06*
+
+
+
+---
+
+## 十九、VPS 安全操作与防封 IP 指南
+
+> SRC 渗透测试中保护自身、避免被目标封禁 IP、避免影响正常业务运行的完整方案
+
+### 19.1 VPS 选择与购买
+
+#### 推荐供应商
+
+| 用途 | 推荐 | 理由 |
+|------|------|------|
+| 国内 SRC | 香港/日本/新加坡 VPS | 延迟低，不经过 GFW |
+| 国外 BB | 美国/欧洲 VPS | 靠近目标 |
+| 高匿需求 | 接受加密货币的 VPS | 无 KYC |
+| 临时用途 | 按小时计费（Vultr/DigitalOcean） | 用完销毁 |
+
+**具体供应商：**
+- **按小时付费**：Vultr / DigitalOcean / Linode — 用完直接销毁实例
+- **便宜年付**：BuyVM / RackNerd / Cloudcone / HostHatch
+- **高匿名**：Njalla、1984hosting（冰岛）、FlokiNET — 支持加密货币、无实名
+
+#### 选购要点
+
+```
+✅ 选择：
+- 多个不同地区的 VPS（IP 被封时切换）
+- 按小时计费（灵活销毁重建）
+- 选择 KVM 虚拟化（性能好、可装嵌套虚拟化）
+- 大带宽（扫描需要）
+
+❌ 避免：
+- 不用自己常用的 IP 直接打目标
+- 不用国内 VPS 打国内 SRC（备案追溯容易）
+- 不用同一个 VPS 长期打同一个目标
+```
+
+### 19.2 VPS 基础安全加固
+
+```bash
+# ═══ 系统更新 ═══
+apt update && apt upgrade -y
+
+# ═══ 修改 SSH 端口（防扫描） ═══
+sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
+systemctl restart sshd
+
+# ═══ 禁用密码登录（仅密钥） ═══
+ssh-keygen -t ed25519 -C "hunter"    # 本地生成密钥
+ssh-copy-id -p 2222 user@vps-ip      # 复制公钥到 VPS
+sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+systemctl restart sshd
+
+# ═══ 防火墙 ═══
+ufw default deny incoming
+ufw allow 2222/tcp    # SSH
+ufw allow 80/tcp      # 回连接收（interactsh 等）
+ufw allow 443/tcp
+ufw enable
+
+# ═══ fail2ban 防暴力破解 ═══
+apt install fail2ban -y
+systemctl enable fail2ban
+
+# ═══ 禁用 IPv6 ═══
+echo "net.ipv6.conf.all.disable_ipv6 = 1" >> /etc/sysctl.conf
+sysctl -p
+
+# ═══ 时区设置（日志时间统一） ═══
+timedatectl set-timezone Asia/Shanghai
+```
+
+### 19.3 操作痕迹清理
+
+```bash
+# ═══ 禁止记录命令历史 ═══
+unset HISTFILE
+export HISTSIZE=0
+export HISTFILESIZE=0
+set +o history
+
+# ═══ 单次清理 ═══
+history -c && history -w
+rm -f ~/.bash_history ~/.zsh_history
+
+# ═══ 系统日志清理 ═══
+echo > /var/log/auth.log
+echo > /var/log/syslog
+echo > /var/log/kern.log
+echo > /var/log/wtmp
+echo > /var/log/btmp
+echo > /var/log/lastlog
+
+# ═══ 定时清理（crontab） ═══
+echo "0 */6 * * * root echo > /var/log/auth.log; echo > /var/log/wtmp; echo > /var/log/btmp" >> /etc/crontab
+
+# ═══ 使用 tmux 防断线 ═══
+tmux new -s hunt    # 创建
+tmux attach -t hunt # 重连
+```
+
+### 19.4 多层跳板架构
+
+```
+推荐架构（三层隔离）：
+
+┌─────────────────────────────────────────────────────────┐
+│  你的电脑                                                │
+│  └── VPN/Tor → 跳板机(VPS-A) → 工作机(VPS-B) → 目标     │
+│                │                 │                        │
+│                │                 ├── proxychains（随机链） │
+│                │                 ├── Tor（高敏操作）       │
+│                │                 └── 代理池（大量扫描）    │
+│                │                                          │
+│                └── SSH Tunnel（加密隧道）                  │
+└─────────────────────────────────────────────────────────┘
+
+作用：
+- VPS-A：纯跳板，不装任何工具，只做 SSH 转发
+- VPS-B：工作机，装所有工具，通过代理出流量
+- 即使 VPS-B 被溯源，也查不到你的真实 IP
+```
+
+```bash
+# SSH 跳板连接
+ssh -J user@vps-a:2222 user@vps-b:2222
+
+# 创建本地 SOCKS 代理（通过跳板）
+ssh -D 1080 -N -f user@vps-a:2222
+
+# SSH 隧道转发远程端口
+ssh -L 8080:target-internal:80 user@vps-b:2222
+```
+
+### 19.5 代理与 IP 轮换
+
+#### 代理类型对比
+
+| 类型 | 匿名性 | 速度 | 成本 | 适用 |
+|------|--------|------|------|------|
+| SOCKS5 代理池 | 高 | 中 | 低 | 扫描+验证 |
+| Residential 代理 | 最高 | 中 | 高 | 绕 IP 黑名单 |
+| Tor | 极高 | 慢 | 免费 | 高敏侦察 |
+| Cloud Function | 高 | 快 | 低 | 每请求换 IP |
+| VPN 轮换 | 中 | 快 | 中 | 日常操作 |
+
+#### proxychains 配置
+
+```bash
+apt install proxychains4 -y
+
+# 编辑 /etc/proxychains4.conf
+# 关键配置：
+random_chain           # 随机选择代理（非顺序）
+chain_len = 2          # 每次随机选 2 个代理
+proxy_dns              # DNS 也走代理
+
+# 代理列表（添加多个）：
+# socks5 1.2.3.4 1080
+# socks5 5.6.7.8 1080
+# socks5 9.10.11.12 1080
+
+# 使用：
+proxychains4 curl https://target.com
+proxychains4 nmap -sT -Pn target.com
+proxychains4 sqlmap -u "url"
+```
+
+#### Tor 多实例（每个工具用不同出口）
+
+```bash
+apt install tor -y
+
+# 修改 /etc/tor/torrc 添加多个 SocksPort：
+# SocksPort 9050
+# SocksPort 9051
+# SocksPort 9052
+
+# 每 10 分钟刷新电路（换出口 IP）：
+watch -n 600 'echo -e "AUTHENTICATE\"\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc 127.0.0.1 9051'
+
+# curl 走 Tor：
+curl --socks5 127.0.0.1:9050 https://check.torproject.org
+```
+
+#### Cloudflare Workers 做 IP 轮换（推荐）
+
+```javascript
+// 每次请求通过 CF Worker 中转，自动获得 Cloudflare 的 IP
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request))
+})
+
+async function handleRequest(request) {
+  const url = new URL(request.url)
+  const target = url.searchParams.get('url')
+  if (!target) return new Response('Missing url param', { status: 400 })
+  
+  const resp = await fetch(target, {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+  })
+  return resp
+}
+// 使用: curl "https://your-worker.workers.dev/?url=https://target.com/api"
+// 每次请求 IP 不同（CF 的 IP 池）
+```
+
+#### 工具级代理配置
+
+```bash
+# httpx
+httpx -proxy socks5://127.0.0.1:1080 -l urls.txt -rl 2
+
+# nuclei
+nuclei -proxy socks5://127.0.0.1:1080 -rl 3 -l targets.txt
+
+# sqlmap
+sqlmap -u "url" --proxy=socks5://127.0.0.1:1080 --random-agent --delay=1
+
+# curl
+curl -x socks5h://127.0.0.1:1080 https://target.com
+
+# nmap (需要 TCP connect 模式)
+proxychains4 nmap -sT -Pn -T2 target.com
+
+# 全局环境变量
+export ALL_PROXY=socks5://127.0.0.1:1080
+export HTTP_PROXY=socks5://127.0.0.1:1080
+export HTTPS_PROXY=socks5://127.0.0.1:1080
+```
+
+### 19.6 限速 — 不触发 WAF / 不影响业务
+
+#### 核心限速原则
+
+```
+⚠️ SRC 黄金限速法则：
+1. 单目标不超过 3 req/s（保守 2 req/s）
+2. 工作日高峰（9:00-18:00）降到 1 req/s
+3. 收到 429/503 立即暂停 5-10 分钟
+4. 连续 403 超过 5 次 → 换 IP 或停止
+5. 夜间（22:00-06:00）可适当提高到 5 req/s
+6. 对同一端点的测试间隔 > 2 秒
+```
+
+#### 各工具限速配置
+
+```bash
+# ═══ httpx ═══
+httpx -rl 2 -t 2 -l urls.txt              # 2 req/s, 2 线程
+
+# ═══ nuclei ═══
+nuclei -rl 3 -c 2 -bs 3 -l targets.txt    # 3 req/s, 2 并发
+
+# ═══ ffuf ═══
+ffuf -u https://target.com/FUZZ -w list.txt -rate 2 -t 1
+
+# ═══ gobuster ═══
+gobuster dir -u https://target.com -w list.txt -t 1 --delay 1000ms
+
+# ═══ nmap（超慢但安全） ═══
+nmap -T1 --max-rate 5 --max-retries 1 --scan-delay 2s target.com
+
+# ═══ sqlmap ═══
+sqlmap -u "url" --delay=2 --timeout=30 --retries=1 \
+  --safe-freq=3 --safe-url="https://target.com/"
+
+# ═══ dirsearch ═══
+dirsearch -u https://target.com -t 2 --delay=1
+
+# ═══ arjun ═══
+arjun -u https://target.com/api -t 2 --stable
+```
+
+#### Python 脚本限速模板
+
+```python
+import asyncio
+import random
+import time
+
+class RateLimiter:
+    """安全限速器"""
+    def __init__(self, requests_per_second=2, jitter=True):
+        self.interval = 1.0 / requests_per_second
+        self.jitter = jitter
+        self.last_request = 0
+    
+    async def wait(self):
+        """等待到可以发送下一个请求"""
+        elapsed = time.time() - self.last_request
+        wait_time = self.interval - elapsed
+        if self.jitter:
+            wait_time += random.uniform(0.1, 0.5)  # 随机抖动
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
+        self.last_request = time.time()
+
+# 使用：
+limiter = RateLimiter(requests_per_second=2)
+
+async def safe_request(url):
+    await limiter.wait()
+    # ... 发送请求
+```
+
+### 19.7 HTTP 请求去特征化（不被日志标记为扫描器）
+
+#### User-Agent 伪装
+
+```bash
+# ❌ 千万不要用默认 UA：
+# python-requests/2.28.0
+# Go-http-client/1.1
+# sqlmap/1.7
+# Nuclei/3.0
+
+# ✅ 使用真实浏览器 UA（随机轮换）：
+UA_LIST=(
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+  "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+)
+# 随机选择：
+UA="${UA_LIST[$RANDOM % ${#UA_LIST[@]}]}"
+curl -H "User-Agent: $UA" https://target.com
+```
+
+#### 完整浏览器头伪装
+
+```bash
+curl -s https://target.com \
+  -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36" \
+  -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
+  -H "Accept-Language: zh-CN,zh;q=0.9,en;q=0.8" \
+  -H "Accept-Encoding: gzip, deflate, br" \
+  -H "Connection: keep-alive" \
+  -H "Upgrade-Insecure-Requests: 1" \
+  -H "Sec-Fetch-Dest: document" \
+  -H "Sec-Fetch-Mode: navigate" \
+  -H "Sec-Fetch-Site: none"
+```
+
+#### 行为模拟（像真人浏览）
+
+```
+✅ 正确做法：
+- 先访问首页 → 再访问子页面（模拟浏览路径）
+- 请求间加随机延迟（0.5-3 秒随机，不是固定间隔）
+- 偶尔访问 CSS/JS/图片（真实浏览器都会加载这些）
+- 使用 Referer 头（从上一个页面跳转过来）
+- Cookie 保持一致（不要每次请求都像新会话）
+
+❌ 扫描器特征（会被日志标记）：
+- 固定 1 秒间隔请求（机器人特征）
+- 短时间大量 404（目录爆破）
+- 没有 Cookie 的连续请求
+- 请求路径无逻辑（/a → /zzz → /admin → /b）
+- 不加载任何静态资源
+```
+
+### 19.8 DNS 隐蔽查询
+
+```bash
+# ═══ 使用 DoH（DNS over HTTPS）避免 DNS 日志 ═══
+
+# Cloudflare DoH
+curl -s "https://cloudflare-dns.com/dns-query?name=target.com&type=A" \
+  -H "accept: application/dns-json" | jq '.Answer[].data'
+
+# Google DoH
+curl -s "https://dns.google/resolve?name=target.com&type=A" | jq '.Answer[].data'
+
+# ═══ 系统级 DoH（永久生效） ═══
+# /etc/systemd/resolved.conf:
+# [Resolve]
+# DNS=1.1.1.1#cloudflare-dns.com
+# DNSOverTLS=yes
+# DNSSEC=yes
+
+systemctl restart systemd-resolved
+
+# ═══ 子域名枚举时用被动方式（不产生 DNS 查询） ═══
+# 被动枚举（不发 DNS 请求）：
+subfinder -d target.com -silent    # 使用 API 被动收集
+
+# 主动枚举（会产生 DNS 请求）：
+# 走 Tor/代理，不暴露真实 IP
+proxychains4 dnsx -d target.com -w subdomains.txt
+```
+
+### 19.9 被封 IP 后的应对
+
+```
+发现被封的信号：
+- 连续返回 403/429/503
+- 响应中出现"IP 已被封禁"/"请完成人机验证"
+- 响应时间突然变长（进入黑洞路由）
+- 正常页面突然返回空白
+
+应对步骤：
+1. 立即停止所有对该目标的请求
+2. 等待 30 分钟 - 1 小时
+3. 切换到备用 VPS / 新 IP
+4. 降低请求频率到 1 req/s
+5. 如果持续被封：
+   - 换 Residential 代理
+   - 使用 Cloudflare Workers 中转
+   - 换目标，过几天再回来
+```
+
+### 19.10 避免影响目标正常运行
+
+```
+⚠️ SRC 生产环境保护原则：
+
+1. 【不做压力测试】
+   - 不并发超过 5 个连接
+   - 不发送超大 payload（> 1MB）
+   - 不循环请求同一接口
+
+2. 【不做破坏性操作】
+   - SQLi: 只用 AND 1=1 验证，不 DROP/DELETE
+   - XSS: 只 alert(1) 验证，不做钓鱼
+   - RCE: 只 whoami/id 验证，不植入后门
+   - 文件上传: 只传 .txt 验证，不传 webshell
+   - SSRF: 只 DNS 外带验证，不扫内网
+
+3. 【选择测试时间】
+   - 优选凌晨 2:00-6:00（流量最低）
+   - 避开工作日 9:00-18:00 高峰
+   - 避开促销活动期间
+
+4. 【监控目标状态】
+   - 测试前确认目标正常响应
+   - 测试中定期检查是否影响响应时间
+   - 发现响应变慢立即停止
+
+5. 【数据最小化】
+   - IDOR 验证只看 1-2 条数据
+   - 不下载/导出大量用户信息
+   - 截图证明后立即停止
+```
+
+### 19.11 你的工具中已有的安全机制
+
+你的 `claude-hunt/auto_agent/config.yaml` 中推荐配置：
+
+```yaml
+# 推荐的安全限速配置（SRC 用）
+rate_limit:
+  requests_per_second: 2       # 保守限速
+  max_concurrent: 2            # 最多 2 并发
+  delay_between_phases: 10     # 阶段间等 10 秒
+  max_total_requests: 300      # 单次最多 300 请求
+
+# 红线检测（自动停止）
+redline:
+  check_interval: 5            # 每 5 请求检查一次
+  max_404_ratio: 0.7           # 404 超过 70% 停止（可能是 WAF）
+  max_403_consecutive: 3       # 连续 3 次 403 停止
+  forbidden_keywords:
+    - "IP已被封禁"
+    - "请完成人机验证"
+    - "频率过快"
+    - "Too Many Requests"
+    - "Access Denied"
+    - "Blocked"
+
+# WAF 自适应
+deep_hunt:
+  enable_waf_bypass: true
+  waf_type: "auto"             # 自动识别 WAF 类型
+
+# 代理配置
+waf_evasion:
+  proxy_pool:
+    - "socks5://proxy1:1080"
+    - "socks5://proxy2:1080"
+    - "socks5://proxy3:1080"
+```
+
+### 19.12 完整操作 SOP（标准操作流程）
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  SRC 安全操作标准流程                                         │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. 准备阶段                                                 │
+│     □ 开新 VPS（按小时付费）                                  │
+│     □ 配置 SSH 密钥登录 + 改端口                              │
+│     □ 安装 proxychains + Tor                                 │
+│     □ 配置代理池（至少 3 个 SOCKS5）                          │
+│     □ 测试代理是否工作: curl ifconfig.me                      │
+│                                                              │
+│  2. 侦察阶段（被动优先）                                      │
+│     □ 被动子域名收集（subfinder -silent）                     │
+│     □ Wayback / gau 收集历史 URL                             │
+│     □ Google Dork 搜索（不直接访问目标）                       │
+│     □ FOFA/Shodan 查端口和指纹                               │
+│     → 此阶段不直接访问目标，零日志                             │
+│                                                              │
+│  3. 主动扫描（通过代理 + 限速）                               │
+│     □ 检查目标是否正常（curl 测试）                            │
+│     □ httpx 存活探测（-rl 2）                                │
+│     □ nuclei 漏洞扫描（-rl 3 通过代理）                       │
+│     □ 参数发现（arjun --stable）                             │
+│     → 全程走代理，限速 2-3 req/s                              │
+│                                                              │
+│  4. 漏洞验证（精准 + 最小化）                                 │
+│     □ 只验证存在性，不扩大利用                                │
+│     □ SQLi: AND 1=1 vs AND 1=2                              │
+│     □ XSS: alert(document.domain) 截图即止                   │
+│     □ IDOR: 看 1 条别人的数据即止                             │
+│     □ RCE: whoami 截图即止                                   │
+│     → 手动操作，不用自动化工具深入                             │
+│                                                              │
+│  5. 收尾阶段                                                 │
+│     □ 整理漏洞报告 + 截图                                     │
+│     □ 提交 SRC 平台                                          │
+│     □ 清理 VPS 日志                                          │
+│     □ 销毁临时 VPS                                           │
+│     □ 本地证据加密保存                                        │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+*最后更新：2025-06*
