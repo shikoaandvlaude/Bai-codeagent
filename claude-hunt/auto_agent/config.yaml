@@ -202,3 +202,72 @@ iot:
   test_firmware: true
   test_id_enum: true
   test_mqtt: true
+
+# ============================================================
+# 新增模块配置（v2.0）
+# ============================================================
+
+# AI 攻击面映射
+attack_surface:
+  enabled: true
+  history_dir: "~/.bai-agent/attack_surface_history"
+  visualize_format: "ascii"  # ascii/mermaid/json
+
+# 子域名接管检测
+subdomain_takeover:
+  enabled: true
+  timeout: 10
+  concurrent: 20
+
+# 云安全扫描
+cloud_scanner:
+  enabled: true
+  timeout: 10
+  concurrent: 15
+  scan_s3: true
+  scan_azure: true
+  scan_gcp: true
+  scan_k8s: true
+  scan_docker: true
+
+# API 安全测试
+api_security:
+  enabled: true
+  timeout: 10
+  concurrent: 10
+  auth_token: ""
+  cookies: ""
+  test_graphql: true
+  test_idor: true
+  test_auth_bypass: true
+  test_rate_limit: true
+  test_websocket: true
+  test_mass_assignment: true
+
+# 凭证泄露检测
+credential_hunter:
+  enabled: true
+  timeout: 10
+  concurrent: 10
+  scan_sensitive_files: true
+  scan_js_secrets: true
+  scan_github_dorks: true
+  validate_secrets: true
+
+# 高级 WAF 绕过
+waf_evasion:
+  enabled: true
+  timeout: 10
+  max_attempts: 20
+  proxy_pool: []
+  # auto/cloudflare/aliyun_waf/tencent_waf/baota/safedog/modsecurity
+  waf_type: "auto"
+  test_smuggling: true
+
+# 报告生成
+report:
+  enabled: true
+  output_dir: "~/.bai-agent/reports"
+  format: "markdown"  # markdown/html/json/hackerone/bugcrowd/butian
+  author: "Bai Auto-Hunt Agent"
+  include_executive_summary: true

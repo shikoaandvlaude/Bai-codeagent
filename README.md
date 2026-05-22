@@ -323,3 +323,195 @@ if should_trust_model("deepseek-chat", "vuln_detection"):
 - ✅ **格式兼容** — 所有模块输出直接接入现有 `findings` 字典格式
 - ✅ **可选使用** — 每个模块独立，按需 import，不影响原有流程
 - ✅ **来源标注** — 每个模块注释标明移植自哪个框架
+
+
+
+---
+
+## 2025.05 更新（第三轮）：增强扫描模块 v2.0
+
+基于对 **Redamon / Woodpecker / Pentera / NodeZero / XBOW** 等最新红队/自动化渗透框架的调研，新增 **7 个专业模块** + 1 个统一集成入口。
+
+### 新增模块总览
+
+| 模块 | 文件 | 能力 |
+|------|------|------|
+| **AI 攻击面映射** | `ai_attack_surface.py` | 资产图构建 + 风险评估 + 攻击向量生成 + 变更监控 + 可视化 |
+| **子域名接管检测** | `subdomain_takeover.py` | 17+ 云服务指纹 + CNAME 悬挂检测 + HTTP 验证 + PoC 步骤 |
+| **云安全扫描** | `cloud_scanner.py` | AWS S3/Azure Blob/GCP Storage 枚举 + K8s API + Docker Registry + SSRF→IMDS |
+| **API 安全测试** | `api_security_scanner.py` | GraphQL 内省/IDOR/DoS + REST 认证绕过 + BOLA + Mass Assignment + WebSocket |
+| **凭证泄露检测** | `credential_hunter.py` | 30+ 密钥正则 + 敏感文件探测 + JS 提取 + 自动验证 + GitHub Dork |
+| **高级 WAF 绕过** | `waf_evasion_advanced.py` | 12 品牌 WAF 指纹 + 自适应绕过 + HTTP 走私 + 中国 WAF 专用 |
+| **专业报告生成** | `report_generator.py` | Markdown/HTML/JSON + HackerOne/Bugcrowd/补天格式 + CVSS + CWE |
+| **统一集成入口** | `enhanced_scanner.py` | 一键调度所有模块 + CLI 工具 + 摘要输出 |
+
+### 快速使用
+
+```bash
+# 全量扫描
+python enhanced_scanner.py --target example.com --all
+
+# 选择模块
+python enhanced_scanner.py --target example.com --cloud --takeover --creds
+
+# API 安全 + 报告
+python enhanced_scanner.py --target example.com --api --report html
+
+# WAF 分析
+python enhanced_scanner.py --target example.com --waf
+```
+
+### 作为库导入
+
+```python
+from enhanced_scanner import EnhancedScanner
+import asyncio
+
+config = {...}  # 从 config.yaml 加载
+scanner = EnhancedScanner(config)
+results = asyncio.run(scanner.full_scan("example.com", modules=["cloud", "api", "credentials"]))
+```
+
+### 各模块详细说明
+
+#### AI 攻击面映射 (`ai_attack_surface.py`)
+
+```python
+from ai_attack_surface import AttackSurfaceMapper
+
+mapper = AttackSurfaceMapper()
+surface = asyncio.run(mapper.map_target("example.com", recon_dir="./recon"))
+mapper.visualize(surface, format="mermaid")  # 支持 ascii/mermaid/json
+targets = mapper.get_priority_targets(surface, top_n=10)
+```
+
+- 多源数据聚合（子域名、端口、服务、技术栈）
+- 18 种技术栈 → 已知漏洞关联
+- 子域名敏感模式识别（dev/staging/admin/jenkins...）
+- 历史对比（新增/消失资产高亮）
+- Mermaid 流程图可视化
+
+#### 子域名接管检测 (`subdomain_takeover.py`)
+
+```python
+from subdomain_takeover import SubdomainTakeoverScanner
+
+scanner = SubdomainTakeoverScanner()
+results = asyncio.run(scanner.scan("example.com", subdomains_file="subs.txt"))
+print(scanner.generate_report())
+```
+
+支持检测的服务：AWS S3/CloudFront/EB、Azure Blob/App Service/Traffic Manager、GitHub Pages、Heroku、Netlify、Vercel、Fastly、GCP Storage、Firebase、Shopify、Zendesk、Pantheon 等。
+
+#### 云安全扫描 (`cloud_scanner.py`)
+
+```python
+from cloud_scanner import CloudSecurityScanner
+
+scanner = CloudSecurityScanner()
+findings = asyncio.run(scanner.scan_target("example.com"))
+# SSRF payload 生成
+payloads = scanner.generate_ssrf_payloads(cloud_provider="aws")
+```
+
+- S3/Azure/GCP Bucket 枚举 + 读写权限验证
+- Kubernetes API 暴露检测（6443/10250/2379 端口）
+- Docker Registry 未授权访问
+- SSRF→IMDS Payload 生成（含绕过变体）
+
+#### API 安全测试 (`api_security_scanner.py`)
+
+```python
+from api_security_scanner import APISecurityScanner
+
+scanner = APISecurityScanner({"auth_token": "Bearer xxx"})
+vulns = asyncio.run(scanner.scan_api("https://api.example.com", endpoints=["/users/1", "/admin"]))
+```
+
+- GraphQL: 内省泄露、别名 IDOR、批量查询 DoS
+- REST: 认证绕过（8 种 Header + HTTP 方法）、BOLA/IDOR
+- Mass Assignment: 特权字段注入测试
+- Rate Limit: 登录端点暴力破解可行性
+- WebSocket: CSWSH 跨站劫持
+
+#### 凭证泄露检测 (`credential_hunter.py`)
+
+```python
+from credential_hunter import CredentialHunter
+
+hunter = CredentialHunter()
+secrets = asyncio.run(hunter.hunt("example.com", recon_dir="./recon"))
+asyncio.run(hunter.validate_findings())  # 验证 GitHub/AWS/GCP 密钥
+dorks = hunter.get_github_dorks("example.com")  # 获取 GitHub Dork 列表
+```
+
+支持 30+ 密钥模式：AWS/GCP/Azure/GitHub/Stripe/Twilio/Slack/JWT/Private Key/MongoDB/PostgreSQL/SendGrid 等。
+
+#### 高级 WAF 绕过 (`waf_evasion_advanced.py`)
+
+```python
+from waf_evasion_advanced import WAFEvasionEngine
+
+engine = WAFEvasionEngine()
+waf_info = asyncio.run(engine.fingerprint_waf("https://target.com"))
+# → WAF: cloudflare (confidence: 85%)
+
+result = asyncio.run(engine.adaptive_bypass(
+    "https://target.com/search", "' OR '1'='1", waf_info, param="q"
+))
+# → success=True, technique="unicode_normalize"
+
+# HTTP 请求走私测试
+smuggling = asyncio.run(engine.test_request_smuggling("https://target.com"))
+```
+
+- 12 种 WAF 指纹识别（Cloudflare/AWS WAF/Akamai/Imperva/阿里云/腾讯云/宝塔/安全狗/ModSecurity...）
+- 12 种高级绕过变异器
+- 自适应学习：记录成功绕过历史，优先使用有效策略
+- HTTP 请求走私（CL-TE/TE-CL/TE-TE）
+
+#### 报告生成 (`report_generator.py`)
+
+```python
+from report_generator import ReportGenerator
+
+gen = ReportGenerator({"output_dir": "./reports"})
+findings = gen.from_raw_findings(raw_data)  # 从原始数据转换
+report = gen.generate(findings, target="example.com", format="hackerone")
+summary = gen.generate_executive_summary(findings, "example.com")
+```
+
+支持格式：Markdown / HTML（带样式）/ JSON / HackerOne / Bugcrowd / 补天(漏洞盒子)
+
+### 架构图（更新）
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Bai Auto-Hunt Agent v2.0                       │
+├─────────────────────────────────────────────────────────────────┤
+│  入口层: enhanced_scanner.py (CLI + Library)                     │
+├─────────────────────────────────────────────────────────────────┤
+│  安全层: Guardrails + Phase-Aware + Agent Supervisor             │
+├─────────────────────────────────────────────────────────────────┤
+│  决策层: AI Attack Surface + Multi-Model + LLM Scorecard         │
+├─────────────────────────────────────────────────────────────────┤
+│  扫描层: Cloud Scanner + API Security + Credential Hunter        │
+│          Subdomain Takeover + WAF Evasion Advanced               │
+├─────────────────────────────────────────────────────────────────┤
+│  执行层: Fireteam + Attack Chain + Exploit Engine                │
+├─────────────────────────────────────────────────────────────────┤
+│  工具层: MCP Server + nuclei/httpx/sqlmap/dalfox/...             │
+├─────────────────────────────────────────────────────────────────┤
+│  输出层: Report Generator (MD/HTML/JSON/SRC平台) + Auto Fix      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 设计原则
+
+- ✅ **纯增量** — 原有代码零修改
+- ✅ **异步高性能** — 全部基于 asyncio 并发
+- ✅ **模块独立** — 每个模块可单独使用
+- ✅ **统一入口** — `enhanced_scanner.py` 一键调度
+- ✅ **格式兼容** — 输出可直接接入现有 findings 流程
+- ✅ **中国 WAF 适配** — 阿里云/腾讯云/宝塔/安全狗 专用绕过
+- ✅ **SRC 平台适配** — HackerOne/Bugcrowd/补天/漏洞盒子 报告格式
