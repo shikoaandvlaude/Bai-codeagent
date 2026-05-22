@@ -271,3 +271,72 @@ report:
   format: "markdown"  # markdown/html/json/hackerone/bugcrowd/butian
   author: "Bai Auto-Hunt Agent"
   include_executive_summary: true
+
+
+# ============================================================
+# 反追踪 / 防封 IP / 流量控制（v2.1）
+# ============================================================
+
+# 代理池管理
+proxy_rotator:
+  enabled: true
+  # 轮换策略: random / round_robin / weighted / least_used
+  strategy: "weighted"
+  # 代理列表（支持 socks5:// http:// 格式）
+  proxies: []
+    # - "socks5://127.0.0.1:1080"
+    # - "socks5://user:pass@proxy2.example.com:1080"
+    # - "http://proxy3.example.com:8080"
+  # 从文件加载代理（每行一个）
+  proxy_file: ""
+  # Tor 配置
+  use_tor: false
+  tor_socks_port: 9050
+  tor_control_port: 9051
+  auto_tor_newnym: true
+  # 健康检查
+  check_url: "https://httpbin.org/ip"
+  check_timeout: 10
+  health_interval: 120       # 每 2 分钟检查一次
+  # 容错
+  max_fails: 5               # 连续失败 5 次后冷却
+  ban_cooldown: 300           # 被封冷却 5 分钟
+  fail_cooldown: 60           # 失败冷却 1 分钟
+
+# 隐蔽 HTTP 引擎
+stealth_http:
+  enabled: true
+  timeout: 15
+  # 浏览器类型: chrome / firefox / safari / edge / random
+  browser_type: "random"
+  # 请求间延迟（秒，随机范围）
+  min_delay: 0.5
+  max_delay: 3.0
+  # 每 N 次请求更换 UA
+  rotate_ua_every: 50
+  # 是否添加 Referer（模拟来源）
+  use_referer: true
+
+# 流量控制器
+traffic_controller:
+  enabled: true
+  # 基础速率（req/s）
+  requests_per_second: 2.0
+  min_rps: 0.1
+  max_rps: 5.0
+  max_concurrent: 3
+  # 时段调度模式: aggressive / normal / conservative / stealth
+  schedule: "normal"
+  # 请求预算
+  max_total_requests: 500
+  max_per_minute: 30
+  max_per_hour: 500
+  # 熔断
+  circuit_break_fails: 10    # 连续 10 次失败触发熔断
+  circuit_break_duration: 120 # 熔断暂停 2 分钟
+  # 封禁检测
+  block_threshold: 3          # 连续 3 次 429/403 暂停
+  block_pause_duration: 60    # 被封暂停 1 分钟
+  # 自适应
+  speedup_factor: 1.1         # 提速系数
+  slowdown_factor: 0.5        # 降速系数（降一半）
