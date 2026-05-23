@@ -13,3 +13,7 @@ workspace/
 .DS_Store
 Thumbs.db
 __pycache__/
+
+# PoC dependencies (too large for git)
+h2-*.jar
+*.class

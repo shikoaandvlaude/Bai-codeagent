@@ -1,0 +1,141 @@
+======================================================================
+CNVD 漏洞提交 -- 表单填写内容
+======================================================================
+
+【漏洞名称】
+JeecgBoot QueryGenerator.installAuthJdbc() SQL注入漏洞（#9434补丁遗漏）
+
+【厂商/产品】
+厂商: 北京国炬信息技术股份有限公司
+产品: JeecgBoot (Jeecg-Boot)
+官网: https://jeecg.com
+开源地址: https://github.com/jeecgboot/JeecgBoot
+
+【影响版本】
+自 v3.0 起至最新 main 分支（截至 2026-05-23，commit 3f826c4，2026-05-21）
+
+【漏洞类型】
+SQL注入 (CWE-89)
+
+【漏洞等级】
+高危
+
+【是否已通知厂商】
+是（已同步发送邮件至 jeecgos@163.com）
+
+【发现日期】
+2026-05-22
+
+----------------------------------------------------------------------
+【漏洞描述】（建议500字以内）
+----------------------------------------------------------------------
+
+2026年3月31日，JeecgBoot 官方通过 issue #9434 修复了 QueryGenerator 类中
+的 SQL 注入漏洞，在 installMplus() 和 installAuthMplus() 两个方法中增加了
+SqlInjectionUtil.filterContent() 过滤调用。
+
+但同一个类中的第三个方法 installAuthJdbc()（第949-952行）存在完全相同的
+代码模式——通过 getSqlRuleValue() 获取规则值后直接拼接到 SQL 字符串中，
+却被遗漏，没有加任何过滤。
+
+该方法返回的 SQL 片段最终通过 MyBatis XML 中的 ${permissionSql}（字符串
+直替，非预编译参数）拼入最终查询语句，攻击者注入的 SQL 片段会无条件执行。
+
+利用条件：攻击者需具有系统管理员权限，能够配置"数据权限规则"。通过在
+数据规则的 ruleValue 字段中写入恶意 SQL（如 UNION SELECT 跨表查询），
+即可在任何用户触发相关查询时窃取敏感数据。
+
+----------------------------------------------------------------------
+【漏洞成因】
+----------------------------------------------------------------------
+
+补丁遗漏。#9434 修复了两个方法，遗漏了第三个同模式方法。
+
+已修补方法（有 filterContent 过滤）:
+  - installMplus()        第136-142行
+  - installAuthMplus()    第996-1000行
+
+未修补方法（无任何过滤）:
+  - installAuthJdbc()     第949-952行
+
+漏洞代码:
+  sb.append(sqlAnd + getSqlRuleValue(ruleMap.get(c).getRuleValue()));
+
+注入落地点:
+  JeecgDemoMapper.xml 第12行:
+  select * from demo where 1=1 ${permissionSql}
+
+该 XML 文件第10行注释原文:
+  "根据权限sql查询数据集 20230904 内部写法，调用位置installAuthJdbc，暂不处理sql注入问题"
+
+----------------------------------------------------------------------
+【完整调用链】
+----------------------------------------------------------------------
+
+1. JeecgDemoServiceImpl.java 第94行:
+   String sql = QueryGenerator.installAuthJdbc(JeecgDemo.class);
+   return this.baseMapper.queryListWithPermission(page, sql);
+
+2. QueryGenerator.java 第951行:
+   sb.append(sqlAnd + getSqlRuleValue(ruleMap.get(c).getRuleValue()));
+
+3. JeecgDemoMapper.xml 第12行:
+   select * from demo where 1=1 ${permissionSql}
+
+----------------------------------------------------------------------
+【利用方式/PoC】
+----------------------------------------------------------------------
+
+前提: 以管理员身份登录系统
+
+步骤:
+1. 进入 系统管理 -> 数据权限 -> 数据规则
+2. 新增规则，规则类型选 SQL_RULES_COLUMN
+3. ruleValue 填入: 1=2 UNION SELECT id, username, id FROM sys_user WHERE 1=1 OR 1=1
+4. 保存规则
+5. 触发任何使用 installAuthJdbc() 的查询
+
+效果: 原本查询 demo 表的接口，返回了 sys_user 表的用户名等敏感数据。
+
+已通过 H2 数据库模拟环境验证，UNION注入和布尔盲注两种方式均确认有效。
+（截图见附件）
+
+----------------------------------------------------------------------
+【影响范围】
+----------------------------------------------------------------------
+
+JeecgBoot 是国内头部低代码平台:
+  - Gitee 18,272 Stars / 11,413 Forks
+  - GitHub 40,000+ Stars
+  - 客户包括百度、中国联通、中国移动、中国电信等
+  - 政府、国企、外包公司大量使用
+
+installAuthJdbc() 是 public static 公开方法，任何业务模块参照官方 Demo
+调用该方法都会继承此漏洞。
+
+----------------------------------------------------------------------
+【修复建议】
+----------------------------------------------------------------------
+
+QueryGenerator.java 第951行，将:
+  sb.append(sqlAnd + getSqlRuleValue(ruleMap.get(c).getRuleValue()));
+
+改为:
+  String sqlRule = getSqlRuleValue(ruleMap.get(c).getRuleValue());
+  SqlInjectionUtil.filterContent(sqlRule, null);
+  sb.append(sqlAnd + sqlRule);
+
+长期建议:
+  1. XML 中 ${permissionSql} 改为 MyBatis 动态SQL预编译方式
+  2. 审计所有 getSqlRuleValue() 调用点
+
+----------------------------------------------------------------------
+【附件清单】（提交时上传截图/PDF）
+----------------------------------------------------------------------
+
+1. 三个方法代码对比截图（installMplus已修 / installAuthMplus已修 / installAuthJdbc未修）
+2. 官方源码最新 commit 截图（证明截至提交时仍未修复）
+3. PoC 运行截图（H2 环境 UNION 注入成功输出）
+4. 完整技术分析报告 PDF（可选）
+
+======================================================================
